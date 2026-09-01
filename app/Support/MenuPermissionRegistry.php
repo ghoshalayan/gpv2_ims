@@ -280,6 +280,12 @@ final class MenuPermissionRegistry
             ],
 
             // Reports — Ledgers
+            'reports_due_list' => [
+                // 'update' gates the CR-3 short/long-term tagging actions, which are the
+                // only writes on this report.
+                'label' => 'Due List', 'abilities' => ['view','export','print','update'],
+                'section' => 'Reports', 'group' => 'Ledgers',
+            ],
             'reports_cash_flow' => [
                 'label' => 'Cash Inflow / Outflow', 'abilities' => ['view','export'],
                 'section' => 'Reports', 'group' => 'Ledgers',

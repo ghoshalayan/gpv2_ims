@@ -142,7 +142,8 @@ $nav = [
             [
                 'group' => 'Ledgers', 'icon' => 'journal-text', 'id' => 'g_ledgers',
                 'children' => [
-                    ['label' => 'Cash Inflow / Outflow',   'icon' => 'cash-stack',              'path' => '/reports/cash-flow',           'perm' => 'reports_cash_flow'],
+                    ['label' => 'Due List',                'icon' => 'cash-stack',              'path' => '/reports/due-list',            'perm' => 'reports_due_list'],
+                    ['label' => 'Cash Inflow / Outflow',   'icon' => 'arrow-left-right',        'path' => '/reports/cash-flow',           'perm' => 'reports_cash_flow'],
                     ['label' => 'GST Sales Register',      'icon' => 'file-earmark-spreadsheet','path' => '/reports/gst-sales-register',  'perm' => 'reports_gst_sales_register'],
                     ['label' => 'GST Purchase Register',   'icon' => 'file-earmark-spreadsheet','path' => '/reports/gst-purchase-register','perm' => 'reports_gst_purchase_register'],
                 ],

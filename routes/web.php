@@ -23,6 +23,7 @@ use App\Controllers\PassbookController;
 use App\Controllers\RecurringExpenseController;
 use App\Controllers\CustomerController;
 use App\Controllers\DashboardController;
+use App\Controllers\DueTermController;
 use App\Controllers\EmployeeController;
 use App\Controllers\HelpController;
 use App\Controllers\HomeController;
@@ -411,6 +412,13 @@ $router->get('/system/integrity-check', [IntegrityCheckController::class, 'show'
 $router->get('/activity-log',           [ActivityLogController::class, 'index'],   $can('activity_log', 'view'));
 
 // Reports
+// Due List (CR-2 / CR-3 / CR-11). Read-only report + the two due-term tag writes.
+$router->get('/reports/due-list',                   [ReportsController::class, 'dueListReport'],          $can('reports_due_list', 'view'));
+$router->get('/reports/due-list/print',             [ReportsController::class, 'dueListPrint'],           $can('reports_due_list', 'print'));
+$router->get('/reports/due-list/csv',               [ReportsController::class, 'dueListCsv'],             $can('reports_due_list', 'export'));
+$router->post('/due-list/invoice/{id}/term',        [DueTermController::class, 'updateInvoice'],          $can('reports_due_list', 'update'));
+$router->post('/due-list/customer/{id}/term',       [DueTermController::class, 'updateCustomer'],         $can('reports_due_list', 'update'));
+
 $router->get('/reports/cash-flow',                  [ReportsController::class, 'cashFlow'],               $can('reports_cash_flow', 'view'));
 $router->get('/reports/balance-sheet',              [ReportsController::class, 'balanceSheet'],           $can('reports_balance_sheet', 'view'));
 $router->get('/reports/profit-loss',                [ReportsController::class, 'profitLoss'],             $can('reports_profit_loss', 'view'));

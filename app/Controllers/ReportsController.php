@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Repositories\BalanceSheetRepository;
 use App\Repositories\BusinessProfileRepository;
 use App\Repositories\CashFlowRepository;
+use App\Repositories\DueListRepository;
 use App\Repositories\GstRegisterRepository;
 use App\Repositories\GstrFilingRepository;
 use App\Repositories\ProfitLossRepository;
@@ -19,7 +20,112 @@ class ReportsController
         private BalanceSheetRepository   $balanceSheet  = new BalanceSheetRepository(),
         private ProfitLossRepository     $profitLoss    = new ProfitLossRepository(),
         private GstrFilingRepository     $gstrFiling    = new GstrFilingRepository(),
+        private DueListRepository        $dueList       = new DueListRepository(),
     ) {}
+
+    /** Column sets the due-list footer totals are summed over. */
+    private const CUSTOMER_TOTAL_COLS = [
+        'invoice_due', 'legacy_due', 'advance_credit',
+        'short_due', 'long_due', 'untagged_due', 'total_due',
+    ];
+    private const SALESMAN_TOTAL_COLS = [
+        'commission_due', 'cash_due', 'total_due',
+    ];
+
+    /**
+     * CR-2 / CR-3 Due List. One screen, two tabs (customer | salesman), with the
+     * short/long/untagged split on the customer tab.
+     */
+    public function dueListReport(): string
+    {
+        $data = $this->buildDueList();
+        return view('reports/due-list', $data);
+    }
+
+    /**
+     * CR-11 — print view. Rendered through layouts/print.php, which the browser turns
+     * into a PDF via "Save as PDF". No PDF library needed (the app has zero dependencies),
+     * and it is the same mechanism the invoice A4 templates already use.
+     */
+    public function dueListPrint(): string
+    {
+        $data = $this->buildDueList();
+        $data['business'] = $this->business->get();
+        $data['printedAt'] = \date('d M Y, g:i a');
+        return view('reports/due-list-print', $data, 'print');
+    }
+
+    /** CSV export, matching the GST registers' export convention. */
+    public function dueListCsv(): string
+    {
+        $d    = $this->buildDueList();
+        $tab  = $d['tab'];
+        $date = \date('Y-m-d');
+
+        if ($tab === 'salesman') {
+            return $this->emitCsv("due-list-salesman_{$date}.csv", [
+                ['Salesman', 'Phone', 'Status', 'Commission Due (₹)', 'Cash Due (₹)', 'Net Total (₹)', 'Direction'],
+                ...\array_map(static fn($r) => [
+                    $r['name'], $r['phone'], $r['status'],
+                    \number_format((float) $r['commission_due'], 2, '.', ''),
+                    \number_format((float) $r['cash_due'], 2, '.', ''),
+                    \number_format((float) $r['total_due'], 2, '.', ''),
+                    ((float) $r['total_due']) >= 0 ? 'We owe salesman' : 'Salesman owes us',
+                ], $d['rows']),
+            ]);
+        }
+
+        return $this->emitCsv("due-list-customer_{$date}.csv", [
+            ['Customer', 'Phone', 'Status', 'Open Invoices', 'Invoice Due (₹)', 'Legacy Due (₹)',
+             'Short-term (₹)', 'Long-term (₹)', 'Untagged (₹)', 'Total Due (₹)',
+             'Unapplied Advance (₹)', 'Oldest Due Date'],
+            ...\array_map(static fn($r) => [
+                $r['name'], $r['phone'], $r['status'], $r['invoice_count'],
+                \number_format((float) $r['invoice_due'], 2, '.', ''),
+                \number_format((float) $r['legacy_due'], 2, '.', ''),
+                \number_format((float) $r['short_due'], 2, '.', ''),
+                \number_format((float) $r['long_due'], 2, '.', ''),
+                \number_format((float) $r['untagged_due'], 2, '.', ''),
+                \number_format((float) $r['total_due'], 2, '.', ''),
+                \number_format((float) $r['advance_credit'], 2, '.', ''),
+                $r['oldest_due_date'] ?? '',
+            ], $d['rows']),
+        ]);
+    }
+
+    /**
+     * Shared between the screen, the print view and the CSV so all three can never
+     * show different numbers for the same filters.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildDueList(): array
+    {
+        $tab    = ($_GET['tab'] ?? 'customer') === 'salesman' ? 'salesman' : 'customer';
+        $search = \trim((string) ($_GET['q'] ?? ''));
+
+        $term = (string) ($_GET['term'] ?? '');
+        if (!\in_array($term, ['short', 'long', 'untagged'], true)) {
+            $term = '';
+        }
+
+        if ($tab === 'salesman') {
+            $rows   = $this->dueList->salesmanDues($search);
+            $totals = $this->dueList->totals($rows, self::SALESMAN_TOTAL_COLS);
+        } else {
+            $rows   = $this->dueList->customerDues($search, $term);
+            $totals = $this->dueList->totals($rows, self::CUSTOMER_TOTAL_COLS);
+        }
+
+        return [
+            'title'  => 'Due List',
+            'tab'    => $tab,
+            'term'   => $term,
+            'search' => $search,
+            'rows'   => $rows,
+            'totals' => $totals,
+        ];
+    }
 
     /**
      * Centralized cash-flow sheet:
