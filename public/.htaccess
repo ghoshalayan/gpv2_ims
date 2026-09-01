@@ -1,0 +1,23 @@
+# Front-controller routing — every request not matching a real file goes to index.php
+RewriteEngine On
+
+# Block direct access to dotfiles
+RewriteRule ^\. - [F,L]
+
+# If the requested path is a real file or directory, serve it directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Otherwise route through the front controller
+RewriteRule ^ index.php [QSA,L]
+
+# Basic security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "same-origin"
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
