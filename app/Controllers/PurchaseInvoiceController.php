@@ -13,6 +13,7 @@ use App\Repositories\SupplierRepository;
 use App\Repositories\ProductUnitRepository;
 use App\Services\PricingService;
 use App\Services\PurchaseInvoiceService;
+use App\Services\SlabRateService;
 use App\Support\Auth;
 use App\Support\Db;
 use App\Support\Flash;
@@ -33,6 +34,7 @@ class PurchaseInvoiceController
         private PricingService                    $pricing      = new PricingService(),
         private ProductUnitRepository             $productUnits = new ProductUnitRepository(),
         private UnitConversion                    $conversion   = new UnitConversion(),
+        private SlabRateService                   $slabRates    = new SlabRateService(),
     ) {}
 
     public function index(): string
@@ -110,6 +112,9 @@ class PurchaseInvoiceController
             'expenses'      => $expenses,
             'brandProducts' => $brandProducts,
             'unitMap'       => $unitMap,
+            // CR-1b: quantity-slab rate suggestions for this invoice's brand. Returns []
+            // when the feature is off, so the form behaves exactly as before.
+            'slabMap'       => $this->slabRates->slabMapForBrand((int) $invoice['brand_id']),
             'preview'       => $this->computePreview($invoice, $lines, $expenses),
         ]);
     }

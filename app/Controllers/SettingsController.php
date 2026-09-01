@@ -101,13 +101,16 @@ class SettingsController
         }
         $enableRoundOff      = !empty($_POST['enable_round_off']) ? '1' : '0';
         $lowStockWidget      = !empty($_POST['low_stock_dashboard_widget']) ? '1' : '0';
+        // CR-1b master switch. Off means purchase entry suggests no slab rate at all.
+        $enableSlabRates     = !empty($_POST['enable_brand_slab_rates']) ? '1' : '0';
 
-        Db::transaction(function () use ($profile, $commissionMode, $enableRoundOff, $lowStockWidget): void {
+        Db::transaction(function () use ($profile, $commissionMode, $enableRoundOff, $lowStockWidget, $enableSlabRates): void {
             $userId = (int) Auth::id();
             $this->bp->update($profile, $userId);
             Settings::set('commission_accrues_on', $commissionMode, $userId);
             Settings::set('enable_round_off', $enableRoundOff, $userId);
             Settings::set('low_stock_dashboard_widget', $lowStockWidget, $userId);
+            Settings::set('enable_brand_slab_rates', $enableSlabRates, $userId);
         });
 
         Flash::success('System settings saved.');

@@ -179,6 +179,11 @@ final class MenuPermissionRegistry
                 'label' => 'Products', 'abilities' => ['view','create','update','delete','import','export'],
                 'section' => 'Menus', 'group' => 'Product Management',
             ],
+            'brand_slabs' => [
+                // CR-1b purchase rate slabs, managed from a brand's own page.
+                'label' => 'Brand Rate Slabs', 'abilities' => ['view','create','update','delete'],
+                'section' => 'Menus', 'group' => 'Product Management',
+            ],
             'rate_changes' => [
                 // 'create' applies a bulk price change; 'delete' reverts one.
                 'label' => 'Rate Management', 'abilities' => ['view','create','delete'],

@@ -504,6 +504,65 @@
         if (qty)     qty.addEventListener('input', refreshHint);
     })();
 
+    // CR-1b — brand quantity-slab rate suggestion.
+    //
+    // Strictly a SUGGESTION: it fills the price field and says which slab it used, and
+    // it stops suggesting the moment the user types their own price. Nothing here is
+    // enforced on save — the server stores whatever is in the field, exactly as before.
+    // slabMap is {} when the feature is off, so this block then does nothing at all.
+    (function () {
+        const slabMap = <?= json_encode($slabMap ?? [], JSON_UNESCAPED_UNICODE) ?>;
+        if (!slabMap || Object.keys(slabMap).length === 0) { return; }
+
+        const sel   = document.querySelector('select[name="product_id"]');
+        const price = document.getElementById('add_unit_price');
+        const qty   = document.getElementById('add_quantity');
+        if (!sel || !price || !qty) { return; }
+
+        // Once the user edits the price themselves, stop overwriting it.
+        let userEdited = false;
+        price.addEventListener('input', function () { userEdited = true; });
+
+        let note = document.getElementById('slab_rate_note');
+        if (!note) {
+            note = document.createElement('div');
+            note.id = 'slab_rate_note';
+            note.className = 'form-text';
+            price.parentNode.appendChild(note);
+        }
+
+        // Half-open [min, max); null max is unbounded — mirrors SlabRateService::covers().
+        function bandFor(productId, q) {
+            const bands = slabMap[productId];
+            if (!bands || !(q > 0)) { return null; }
+            for (let i = 0; i < bands.length; i++) {
+                const b = bands[i];
+                if (q >= b.min && (b.max === null || q < b.max)) { return b; }
+            }
+            return null;
+        }
+
+        function apply() {
+            const productId = sel.value;
+            const q = parseFloat(qty.value || '0');
+            const band = bandFor(productId, q);
+
+            if (!band) { note.textContent = ''; return; }
+
+            if (userEdited) {
+                // Respect the typed price, but still say what the slab would have been.
+                note.textContent = 'Slab "' + band.label + '" rate is ' + band.rate;
+                return;
+            }
+            price.value = band.rate;
+            note.textContent = 'Auto-filled from slab "' + band.label + '" — editable.';
+        }
+
+        sel.addEventListener('change', function () { userEdited = false; apply(); });
+        qty.addEventListener('input', apply);
+        apply();
+    })();
+
     // Header dispute warnings. Invoice-level rate lives in the footer now.
     (function () {
         const bf     = document.getElementById('bill_format_sel');

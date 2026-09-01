@@ -8,6 +8,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BankAccountController;
 use App\Controllers\BrandController;
 use App\Controllers\BrandRebateController;
+use App\Controllers\BrandSlabController;
 use App\Controllers\CashierDrawerController;
 use App\Controllers\CategoryController;
 use App\Controllers\InterAccountTransferController;
@@ -351,6 +352,14 @@ $router->get('/capital-movements/create',                      [CapitalMovementC
 $router->post('/capital-movements',                            [CapitalMovementController::class, 'store'],     $can('capital_movements', 'create'));
 $router->get('/capital-movements/{id}',                        [CapitalMovementController::class, 'show'],      $can('capital_movements', 'view'));
 $router->post('/capital-movements/{id}/void',                  [CapitalMovementController::class, 'void'],      $can('capital_movements', 'void'));
+
+// Brand purchase rate slabs (CR-1b). Suggestion data only — these routes never touch
+// an invoice, stock, or cost column.
+$router->get('/brands/{id}/slabs',                             [BrandSlabController::class, 'index'],           $can('brand_slabs', 'view'));
+$router->post('/brands/{id}/slabs',                            [BrandSlabController::class, 'storeSlab'],       $can('brand_slabs', 'create'));
+$router->post('/brands/{id}/slabs/rates',                      [BrandSlabController::class, 'saveRates'],       $can('brand_slabs', 'update'));
+$router->post('/brand-slabs/{slabId}/update',                  [BrandSlabController::class, 'updateSlab'],      $can('brand_slabs', 'update'));
+$router->post('/brand-slabs/{slabId}/delete',                  [BrandSlabController::class, 'deleteSlab'],      $can('brand_slabs', 'delete'));
 
 // Rate Management (CR-4) - bulk selling-price changes, category/subcategory-wise.
 // index is a GET preview and writes nothing; only apply/revert change prices.

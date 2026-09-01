@@ -51,6 +51,11 @@
                                        class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-pencil"></i> Edit
                                     </a>
+                                    <a href="<?= url('/brands/' . $b['id'] . '/slabs') ?>"
+                                       class="btn btn-sm btn-outline-secondary"
+                                       title="Purchase rate slabs — auto-suggest a rate from the quantity entered">
+                                        <i class="bi bi-bar-chart-steps"></i> Slabs
+                                    </a>
                                     <?php if (!$isSystem): ?>
                                         <form method="post" action="<?= url('/brands/' . $b['id'] . '/toggle') ?>"
                                               class="d-inline"

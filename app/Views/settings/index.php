@@ -110,6 +110,19 @@
                             Round invoice grand total to nearest rupee
                         </label>
                     </div>
+                    <div class="form-check form-switch mb-2">
+                        <?php $slabRates = (string) old('enable_brand_slab_rates', $settings['enable_brand_slab_rates'] ?? '0') === '1'; ?>
+                        <input class="form-check-input" type="checkbox" id="enable_brand_slab_rates" name="enable_brand_slab_rates" value="1"
+                               <?= $slabRates ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="enable_brand_slab_rates">
+                            Slab purchase rates — suggest a brand's rate from the quantity entered
+                        </label>
+                        <div class="form-text">
+                            Set the slabs on each brand's page. The suggested price stays editable, and
+                            already-saved invoices are never changed. Turning this off restores the
+                            plain price field.
+                        </div>
+                    </div>
                     <div class="form-check form-switch">
                         <?php $lowStock = (string) old('low_stock_dashboard_widget', $settings['low_stock_dashboard_widget'] ?? '1') === '1'; ?>
                         <input class="form-check-input" type="checkbox" id="low_stock_dashboard_widget" name="low_stock_dashboard_widget" value="1"
