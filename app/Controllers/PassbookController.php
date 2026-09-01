@@ -4,12 +4,14 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\BankAccountRepository;
+use App\Repositories\BusinessProfileRepository;
 use App\Repositories\CashierDrawerRepository;
 use App\Repositories\CustomerRepository;
 use App\Repositories\PassbookRepository;
 use App\Repositories\SalesmanRepository;
 use App\Repositories\SupplierRepository;
 use App\Support\Flash;
+use App\Support\Whatsapp;
 
 /**
  * Universal Passbook (#24, D40 / D50) — single endpoint that renders any entity's
@@ -31,9 +33,46 @@ class PassbookController
         private SalesmanRepository       $salesmen  = new SalesmanRepository(),
         private BankAccountRepository    $banks     = new BankAccountRepository(),
         private CashierDrawerRepository  $drawers   = new CashierDrawerRepository(),
+        private BusinessProfileRepository $business = new BusinessProfileRepository(),
     ) {}
 
     public function show(array $params): string
+    {
+        $data = $this->build($params);
+        if (\is_string($data)) {
+            return $data;
+        }
+
+        // CR-5: offer a WhatsApp share only where the entity has a usable number.
+        $data['whatsappUrl'] = $this->whatsappUrl($data);
+
+        return view('passbook/show', $data);
+    }
+
+    /**
+     * CR-5 — printable statement. Rendered through layouts/print.php so the browser's
+     * "Save as PDF" produces the file; no PDF library is involved.
+     */
+    public function printA4(array $params): string
+    {
+        $data = $this->build($params);
+        if (\is_string($data)) {
+            return $data;
+        }
+
+        $data['business']  = $this->business->get();
+        $data['printedAt'] = \date('d M Y, g:i a');
+
+        return view('passbook/print/a4', $data, 'print');
+    }
+
+    /**
+     * Shared data build for the screen and the print view, so a printed statement can
+     * never show different figures from the screen it was printed from.
+     *
+     * @return array<string, mixed>|string  view data, or a redirect string on failure
+     */
+    private function build(array $params): array|string
     {
         $kind = (string) $params['kind'];
         $id   = (int) $params['id'];
@@ -70,7 +109,7 @@ class PassbookController
         }
         $rows = $this->withRunningBalance($periodRows, $opening);
 
-        return view('passbook/show', [
+        return [
             'title'         => $context['title'],
             'kind'          => $kind,
             'context'       => $context,
@@ -79,8 +118,56 @@ class PassbookController
             'from'          => $from,
             'to'            => $to,
             'computedOpening' => $opening,
+            'closingBalance'  => $this->closingBalance($rows, $opening),
             'totalLifetimeRows' => \count($allRows),
-        ]);
+        ];
+    }
+
+    /**
+     * Pre-filled WhatsApp message summarising the statement. Returns null when the
+     * entity has no usable phone (bank accounts and drawers never do), so the view
+     * simply omits the button rather than producing a broken link.
+     */
+    private function whatsappUrl(array $data): ?string
+    {
+        $context = $data['context'];
+        $phone   = $context['phone'] ?? null;
+        if ($phone === null || $phone === '') {
+            return null;
+        }
+
+        // Show the balance the same way the screen does (payables are inverted).
+        $display = !empty($context['invert_balance'])
+            ? -$data['closingBalance']
+            : $data['closingBalance'];
+
+        $lines = [
+            $context['entity_name'] ?? '',
+            '',
+            'Statement ' . $data['from'] . ' to ' . $data['to'],
+            'Opening: ' . \number_format($data['computedOpening'], 2),
+            'Debit: '   . \number_format((float) $data['totals']['debit'], 2),
+            'Credit: '  . \number_format((float) $data['totals']['credit'], 2),
+            ($context['balance_label'] ?? 'Balance') . ': ' . \number_format($display, 2),
+        ];
+        if (!empty($context['positive_means']) && \abs($display) > 0.004) {
+            $lines[] = $display > 0
+                ? '(' . $context['positive_means'] . ')'
+                : '(advance / credit in their favour)';
+        }
+        $lines[] = '';
+        $lines[] = \trim((string) ($this->business->get()['display_name'] ?? env('APP_NAME')));
+
+        return Whatsapp::chatUrl((string) $phone, \implode("\n", $lines));
+    }
+
+    private function closingBalance(array $rows, float $opening): float
+    {
+        $balance = $opening;
+        foreach ($rows as $r) {
+            $balance += (float) $r['credit'] - (float) $r['debit'];
+        }
+        return $balance;
     }
 
     /**
@@ -95,6 +182,8 @@ class PassbookController
                 if ($row === null) return null;
                 return [
                     'title'           => 'Customer Passbook · ' . $row['name'],
+                    'entity_name'     => $row['name'],
+                    'phone'           => $row['phone'] ?? null,     // CR-5: WhatsApp share
                     'subtitle'        => 'Outstanding = (sales) − (payments + returns)',
                     'opening_balance' => 0.0,                       // legacy old_record balance not yet wired
                     'back_url'        => '/customers/' . $id . '/edit',
@@ -109,6 +198,8 @@ class PassbookController
                 if ($row === null) return null;
                 return [
                     'title'           => 'Supplier Passbook · ' . $row['name'],
+                    'entity_name'     => $row['name'],
+                    'phone'           => $row['phone'] ?? null,
                     'subtitle'        => 'Outstanding = (purchases) − (payments + returns)',
                     'opening_balance' => 0.0,
                     'back_url'        => '/suppliers/' . $id . '/edit',
@@ -152,6 +243,8 @@ class PassbookController
                 if ($row === null) return null;
                 return [
                     'title'           => 'Salesman Passbook · ' . $row['name'],
+                    'entity_name'     => $row['name'],
+                    'phone'           => $row['phone'] ?? null,
                     'subtitle'        => 'Commission earned − reversals (settlements come later in #22)',
                     'opening_balance' => 0.0,
                     'back_url'        => '/salesmen/' . $id . '/edit',

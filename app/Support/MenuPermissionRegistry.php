@@ -249,7 +249,9 @@ final class MenuPermissionRegistry
             // reached from customer/supplier/salesman/account pages — but gating it
             // here lets admins control who can open the financial ledger view.
             'passbook' => [
-                'label' => 'Passbook (entity ledger)', 'abilities' => ['view'],
+                // 'print' gates the CR-5 printable statement (and with it the WhatsApp
+                // share, since that summarises the same figures).
+                'label' => 'Passbook (entity ledger)', 'abilities' => ['view','print'],
                 'section' => 'Menus', 'group' => 'Cash & Bank',
             ],
 

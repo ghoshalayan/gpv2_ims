@@ -6,7 +6,9 @@
 /** @var string $from */
 /** @var string $to */
 /** @var float  $computedOpening */
+/** @var float  $closingBalance */
 /** @var int    $totalLifetimeRows */
+/** @var string|null $whatsappUrl */
 ?>
 <?php
 // Map source_type to a colored badge for the lines.
@@ -29,6 +31,22 @@ $invertBalance = !empty($context['invert_balance']);
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h4 mb-0"><i class="bi bi-journal-text"></i> <?= e($context['title']) ?></h1>
     <div class="d-flex gap-2">
+        <?php
+            // Carry the current period through to the printed statement so it matches
+            // exactly what is on screen.
+            $periodQs = '?from=' . urlencode($from) . '&to=' . urlencode($to);
+        ?>
+        <a href="<?= url('/passbook/' . e($kind) . '/' . (int) $context['id'] . '/print' . $periodQs) ?>"
+           target="_blank" class="btn btn-outline-primary">
+            <i class="bi bi-printer"></i> Print / PDF
+        </a>
+        <?php if (!empty($whatsappUrl)): ?>
+            <a href="<?= e($whatsappUrl) ?>" target="_blank" rel="noopener"
+               class="btn btn-outline-success"
+               title="Opens WhatsApp with a summary ready to send. Attach the printed PDF for the full statement.">
+                <i class="bi bi-whatsapp"></i> WhatsApp
+            </a>
+        <?php endif; ?>
         <a href="<?= url($context['back_url']) ?>" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> <?= e($context['back_label']) ?>
         </a>

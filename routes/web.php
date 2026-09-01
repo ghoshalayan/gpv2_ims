@@ -353,6 +353,9 @@ $router->post('/capital-movements/{id}/void',                  [CapitalMovementC
 
 // Universal Passbook
 $router->get('/passbook/{kind}/{id}',                          [PassbookController::class, 'show'],             $can('passbook', 'view'));
+// CR-5: printable statement (browser "Save as PDF"); the WhatsApp share is a wa.me
+// link built in the controller, so it needs no route of its own.
+$router->get('/passbook/{kind}/{id}/print',                    [PassbookController::class, 'printA4'],          $can('passbook', 'print'));
 
 // Salesman Commission Settlement
 $router->get('/commission-settlements',                        [CommissionSettlementController::class, 'index'],  $can('commission_settlements', 'view'));
