@@ -65,6 +65,7 @@ $nav = [
                     ['label' => 'Sub-Categories',     'icon' => 'collection',         'path' => '/subcategories',           'perm' => 'subcategories'],
                     ['label' => 'Brands',             'icon' => 'bookmark-star',      'path' => '/brands',                  'perm' => 'brands'],
                     ['label' => 'Products',           'icon' => 'tag',                'path' => '/products',                'perm' => 'products'],
+                    ['label' => 'Rate Management',    'icon' => 'currency-rupee',     'path' => '/rate-changes',            'perm' => 'rate_changes'],
                     ['label' => 'Production Orders',  'icon' => 'gear-wide-connected','path' => '/production-orders',       'perm' => 'production_orders'],
                     ['label' => 'Units',              'icon' => 'rulers',             'path' => '/units',                   'perm' => 'units'],
                     ['label' => 'Stock Adjustments',  'icon' => 'clipboard-x',        'path' => '/stock-adjustments',       'perm' => 'stock_adjustments'],

@@ -29,6 +29,7 @@ use App\Controllers\HelpController;
 use App\Controllers\HomeController;
 use App\Controllers\ProductController;
 use App\Controllers\ProductionOrderController;
+use App\Controllers\RateChangeController;
 use App\Controllers\ProductRecipeController;
 use App\Controllers\ProductUnitController;
 use App\Controllers\PurchaseInvoiceController;
@@ -350,6 +351,13 @@ $router->get('/capital-movements/create',                      [CapitalMovementC
 $router->post('/capital-movements',                            [CapitalMovementController::class, 'store'],     $can('capital_movements', 'create'));
 $router->get('/capital-movements/{id}',                        [CapitalMovementController::class, 'show'],      $can('capital_movements', 'view'));
 $router->post('/capital-movements/{id}/void',                  [CapitalMovementController::class, 'void'],      $can('capital_movements', 'void'));
+
+// Rate Management (CR-4) - bulk selling-price changes, category/subcategory-wise.
+// index is a GET preview and writes nothing; only apply/revert change prices.
+$router->get('/rate-changes',                                  [RateChangeController::class, 'index'],          $can('rate_changes', 'view'));
+$router->post('/rate-changes/apply',                           [RateChangeController::class, 'apply'],          $can('rate_changes', 'create'));
+$router->get('/rate-changes/{id}',                             [RateChangeController::class, 'show'],           $can('rate_changes', 'view'));
+$router->post('/rate-changes/{id}/revert',                     [RateChangeController::class, 'revert'],         $can('rate_changes', 'delete'));
 
 // Universal Passbook
 $router->get('/passbook/{kind}/{id}',                          [PassbookController::class, 'show'],             $can('passbook', 'view'));

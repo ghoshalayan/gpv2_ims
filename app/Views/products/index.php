@@ -1,6 +1,7 @@
 <?php
 /** @var array $products */
 /** @var array $brands */
+/** @var array $categories */
 /** @var array $filters */
 /** @var array $pg */
 ?>
@@ -26,12 +27,44 @@
                 </select>
             </div>
             <div class="col-md-3">
+                <label class="form-label small" for="f_category">Category</label>
+                <select id="f_category" name="category_id" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <?php foreach ($categories as $c): ?>
+                        <option value="<?= (int) $c['id'] ?>" <?= ($filters['category_id'] ?? null) === (int) $c['id'] ? 'selected' : '' ?>>
+                            <?= e($c['name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small" for="f_stock">Stock</label>
+                <select id="f_stock" name="stock_state" class="form-select form-select-sm">
+                    <option value="">Any</option>
+                    <option value="in_stock"     <?= ($filters['stock_state'] ?? '') === 'in_stock'     ? 'selected' : '' ?>>In stock</option>
+                    <option value="low_stock"    <?= ($filters['stock_state'] ?? '') === 'low_stock'    ? 'selected' : '' ?>>Low stock</option>
+                    <option value="out_of_stock" <?= ($filters['stock_state'] ?? '') === 'out_of_stock' ? 'selected' : '' ?>>Out of stock</option>
+                </select>
+            </div>
+            <div class="col-md-3">
                 <label class="form-label small" for="f_status">Status</label>
                 <select id="f_status" name="status" class="form-select form-select-sm">
                     <option value="">All</option>
                     <option value="active"   <?= ($filters['status'] ?? '') === 'active'   ? 'selected' : '' ?>>Active</option>
                     <option value="inactive" <?= ($filters['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                 </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small" for="f_price_min">Selling price from</label>
+                <input type="number" id="f_price_min" name="price_min" step="0.01" min="0"
+                       class="form-control form-control-sm" placeholder="min"
+                       value="<?= $filters['price_min'] !== null ? e((string) $filters['price_min']) : '' ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small" for="f_price_max">to</label>
+                <input type="number" id="f_price_max" name="price_max" step="0.01" min="0"
+                       class="form-control form-control-sm" placeholder="max"
+                       value="<?= $filters['price_max'] !== null ? e((string) $filters['price_max']) : '' ?>">
             </div>
             <div class="col-md-6 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary">Apply</button>
@@ -43,7 +76,7 @@
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <?php $searchPlaceholder = 'Search name, HSN, brand, or sub-category…'; ?>
+        <?php $searchPlaceholder = 'Search name, HSN, description, brand, category, or sub-category…'; ?>
         <?php require __DIR__ . '/../partials/pagination.php'; ?>
 
         <?php if ($products === []): ?>

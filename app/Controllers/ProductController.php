@@ -31,18 +31,37 @@ class ProductController
     public function index(): string
     {
         $p = \App\Support\Paginator::fromQuery();
+
+        // CR-9 — category, stock state and price band on top of the existing filters.
+        $stockState = (string) ($_GET['stock_state'] ?? '');
+        if (!\in_array($stockState, ['in_stock', 'low_stock', 'out_of_stock'], true)) {
+            $stockState = '';
+        }
+        // Blank means "no bound", which is different from 0 — so test the raw string.
+        $priceMin = \trim((string) ($_GET['price_min'] ?? ''));
+        $priceMax = \trim((string) ($_GET['price_max'] ?? ''));
+
         $filters = [
             'brand_id'       => (int) ($_GET['brand_id'] ?? 0) ?: null,
             'subcategory_id' => (int) ($_GET['subcategory_id'] ?? 0) ?: null,
+            'category_id'    => (int) ($_GET['category_id'] ?? 0) ?: null,
             'status'         => (string) ($_GET['status'] ?? ''),
+            'stock_state'    => $stockState,
+            'price_min'      => $priceMin === '' ? null : (float) $priceMin,
+            'price_max'      => $priceMax === '' ? null : (float) $priceMax,
         ];
         $result = $this->repo->paginate($filters, $p->page, $p->perPage, $p->search);
+
+        // Drop nulls/blanks so pagination links stay clean.
+        $queryFilters = \array_filter($filters, static fn($v) => $v !== null && $v !== '');
+
         return view('products/index', [
-            'title'    => 'Products',
-            'products' => $result['rows'],
-            'brands'   => $this->brands->listActive(),
-            'filters'  => $filters,
-            'pg'       => $p->buildContext($result['total'], url('/products'), $filters + ['q' => $p->search]),
+            'title'      => 'Products',
+            'products'   => $result['rows'],
+            'brands'     => $this->brands->listActive(),
+            'categories' => $this->categories->listActive(),
+            'filters'    => $filters,
+            'pg'         => $p->buildContext($result['total'], url('/products'), $queryFilters + ['q' => $p->search]),
         ]);
     }
 

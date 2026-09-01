@@ -42,7 +42,13 @@ class ProductRepository
         )->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /** @return array{rows: array<int, array<string, mixed>>, total: int} */
+    /**
+     * @param array{
+     *   brand_id?:int|null, subcategory_id?:int|null, category_id?:int|null,
+     *   status?:string, stock_state?:string, price_min?:float|null, price_max?:float|null
+     * } $filters
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
     public function paginate(array $filters, int $page, int $perPage, string $search = ''): array
     {
         $where  = [];
@@ -50,18 +56,46 @@ class ProductRepository
         if (!empty($filters['brand_id']))       { $where[] = 'p.brand_id = ?';       $params[] = (int) $filters['brand_id']; }
         if (!empty($filters['subcategory_id'])) { $where[] = 'p.subcategory_id = ?'; $params[] = (int) $filters['subcategory_id']; }
         if (!empty($filters['status']))         { $where[] = 'p.status = ?';         $params[] = (string) $filters['status']; }
+
+        // CR-9 — category filter. Subcategories carry category_id, so this reaches
+        // categories through sc without needing the categories table itself.
+        if (!empty($filters['category_id']))    { $where[] = 'sc.category_id = ?';   $params[] = (int) $filters['category_id']; }
+
+        // CR-9 — stock state. Mirrors the low-stock definition the dashboard uses and
+        // is backed by idx_products_low_stock (quantity_on_hand, low_stock_threshold).
+        $where[] = match ($filters['stock_state'] ?? '') {
+            'in_stock'     => 'p.quantity_on_hand > 0',
+            'out_of_stock' => 'p.quantity_on_hand <= 0',
+            'low_stock'    => 'p.quantity_on_hand > 0 AND p.quantity_on_hand <= p.low_stock_threshold',
+            default        => '1 = 1',
+        };
+
+        // CR-9 — selling-price band. Nulls mean "unbounded on that side".
+        if (isset($filters['price_min']) && $filters['price_min'] !== null) {
+            $where[] = 'p.default_selling_price >= ?'; $params[] = (float) $filters['price_min'];
+        }
+        if (isset($filters['price_max']) && $filters['price_max'] !== null) {
+            $where[] = 'p.default_selling_price <= ?'; $params[] = (float) $filters['price_max'];
+        }
+
         if ($search !== '') {
-            $where[]  = '(p.name LIKE ? OR p.hsn_code LIKE ? OR b.name LIKE ? OR sc.name LIKE ?)';
+            // CR-9 — widened from name/HSN/brand/subcategory to also match the category
+            // and the free-text description, so a part number or a note finds the product.
+            $where[]  = '(p.name LIKE ? OR p.hsn_code LIKE ? OR p.description LIKE ?
+                          OR b.name LIKE ? OR sc.name LIKE ? OR sc2c.name LIKE ?)';
             $like = '%' . $search . '%';
-            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+            for ($i = 0; $i < 6; $i++) { $params[] = $like; }
         }
         $whereSql = $where === [] ? '' : ' WHERE ' . \implode(' AND ', $where);
 
+        // The categories join is INNER on a NOT NULL FK, so it cannot change the count;
+        // it is present only so the category name is searchable in both queries.
         $count = Db::pdo()->prepare(
             "SELECT COUNT(*)
              FROM products p
-             JOIN brands b         ON b.id  = p.brand_id
-             JOIN subcategories sc ON sc.id = p.subcategory_id
+             JOIN brands b          ON b.id  = p.brand_id
+             JOIN subcategories sc  ON sc.id = p.subcategory_id
+             JOIN categories sc2c   ON sc2c.id = sc.category_id
              {$whereSql}"
         );
         $count->execute($params);
@@ -91,11 +125,11 @@ class ProductRepository
                     ), 0) ELSE 0 END AS derived_avg_cost,
                     b.id  AS brand_id, b.name  AS brand_name, b.status AS brand_status,
                     sc.id AS subcategory_id, sc.name AS subcategory_name, sc.status AS subcategory_status,
-                    c.id  AS category_id, c.name AS category_name, c.status AS category_status
+                    sc2c.id AS category_id, sc2c.name AS category_name, sc2c.status AS category_status
              FROM products p
-             JOIN brands b         ON b.id  = p.brand_id
-             JOIN subcategories sc ON sc.id = p.subcategory_id
-             JOIN categories c     ON c.id  = sc.category_id
+             JOIN brands b          ON b.id  = p.brand_id
+             JOIN subcategories sc  ON sc.id = p.subcategory_id
+             JOIN categories sc2c   ON sc2c.id = sc.category_id
              {$whereSql}
              ORDER BY p.name
              LIMIT {$perPage} OFFSET {$offset}"

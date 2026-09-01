@@ -179,6 +179,11 @@ final class MenuPermissionRegistry
                 'label' => 'Products', 'abilities' => ['view','create','update','delete','import','export'],
                 'section' => 'Menus', 'group' => 'Product Management',
             ],
+            'rate_changes' => [
+                // 'create' applies a bulk price change; 'delete' reverts one.
+                'label' => 'Rate Management', 'abilities' => ['view','create','delete'],
+                'section' => 'Menus', 'group' => 'Product Management',
+            ],
             'production_orders' => [
                 'label' => 'Production Orders', 'abilities' => ['view','create'],
                 'section' => 'Menus', 'group' => 'Product Management',
