@@ -71,8 +71,12 @@ class SupplierRepository
         return $this->existsByField('name', $name, $excludeId);
     }
 
-    public function existsByPhone(string $phone, ?int $excludeId = null): bool
+    /** CR-10: "no phone" is never a duplicate — see CustomerRepository::existsByPhone. */
+    public function existsByPhone(?string $phone, ?int $excludeId = null): bool
     {
+        if ($phone === null || \trim($phone) === '') {
+            return false;
+        }
         return $this->existsByField('phone', $phone, $excludeId);
     }
 

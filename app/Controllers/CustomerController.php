@@ -127,7 +127,9 @@ class CustomerController
     {
         $data = [
             'name'                => \trim((string) ($input['name']    ?? '')),
-            'phone'               => \trim((string) ($input['phone']   ?? '')),
+            // CR-10: optional free text. Blank stores NULL, not '', so any number of
+            // customers can have no phone while real numbers stay unique.
+            'phone'               => \trim((string) ($input['phone']   ?? '')) ?: null,
             'email'               => \trim((string) ($input['email']   ?? '')) ?: null,
             'address'             => \trim((string) ($input['address'] ?? '')) ?: null,
             'gstin'               => \strtoupper(\trim((string) ($input['gstin'] ?? ''))) ?: null,
@@ -137,17 +139,17 @@ class CustomerController
             'remarks'             => \trim((string) ($input['remarks'] ?? '')) ?: null,
         ];
 
+        // CR-10: phone is neither required nor format-checked any more — only length is
+        // enforced, so alternate numbers or a note fit. Name remains the identity.
         $v = Validator::make([
                 'name'  => $data['name'],
-                'phone' => $data['phone'],
+                'phone' => $data['phone'] ?? '',
                 'email' => $data['email'] ?? '',
                 'gstin' => $data['gstin'] ?? '',
             ])
             ->required('name')
             ->max('name', 150)
-            ->required('phone')
             ->max('phone', 20)
-            ->phone('phone')
             ->max('email', 150)
             ->gstin('gstin');
 

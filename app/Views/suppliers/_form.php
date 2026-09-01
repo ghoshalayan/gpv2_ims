@@ -18,10 +18,13 @@ $supplier = $supplier ?? null;
                                value="<?= e(old('name', $supplier['name'] ?? '')) ?>" required autofocus>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label" for="phone">Phone <span class="text-danger">*</span></label>
+                        <label class="form-label" for="phone">Phone</label>
                         <input type="text" id="phone" name="phone" maxlength="20"
                                class="form-control"
-                               value="<?= e(old('phone', $supplier['phone'] ?? '')) ?>" required>
+                               value="<?= e(old('phone', $supplier['phone'] ?? '')) ?>">
+                        <div class="form-text">
+                            Optional, any format. If given, it must be unique.
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="email">Email</label>

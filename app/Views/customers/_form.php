@@ -30,11 +30,13 @@ $isEmployeeMirror = !empty($customer['linked_employee_id']);
                                value="<?= e(old('name', $customer['name'] ?? '')) ?>" required autofocus>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label" for="phone">Phone <span class="text-danger">*</span></label>
+                        <label class="form-label" for="phone">Phone</label>
                         <input type="text" id="phone" name="phone" maxlength="20"
                                class="form-control"
-                               value="<?= e(old('phone', $customer['phone'] ?? '')) ?>" required>
-                        <div class="form-text">Must be unique.</div>
+                               value="<?= e(old('phone', $customer['phone'] ?? '')) ?>">
+                        <div class="form-text">
+                            Optional, any format. If given, it must be unique.
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label" for="email">Email</label>

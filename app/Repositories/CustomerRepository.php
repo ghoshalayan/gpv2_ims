@@ -75,9 +75,19 @@ class CustomerRepository
         return $row === false ? null : $row;
     }
 
-    /** Look up an existing customer that matches BOTH name and phone — used by auto-link. */
-    public function findByNameAndPhone(string $name, string $phone): ?array
+    /**
+     * Look up an existing customer that matches BOTH name and phone — used by auto-link.
+     *
+     * CR-10 made customer phone optional, so this must refuse to match on a blank one.
+     * Matching name-only would be worse than not matching: a salesman could be silently
+     * linked to an unrelated customer who happens to share a name. Returning null just
+     * means a fresh mirror customer is created, which is the safe outcome.
+     */
+    public function findByNameAndPhone(string $name, ?string $phone): ?array
     {
+        if ($phone === null || \trim($phone) === '') {
+            return null;
+        }
         $stmt = Db::pdo()->prepare(
             'SELECT id, name, phone, linked_salesman_id, linked_employee_id
              FROM customers WHERE name = ? AND phone = ? LIMIT 1'
@@ -108,8 +118,16 @@ class CustomerRepository
         return $this->existsByField('name', $name, $excludeId);
     }
 
-    public function existsByPhone(string $phone, ?int $excludeId = null): bool
+    /**
+     * CR-10: phone is optional now, so "no phone" can never be a duplicate — otherwise
+     * the second customer saved without one would be rejected. Real numbers are still
+     * checked, and the UNIQUE index still backs that up.
+     */
+    public function existsByPhone(?string $phone, ?int $excludeId = null): bool
     {
+        if ($phone === null || \trim($phone) === '') {
+            return false;
+        }
         return $this->existsByField('phone', $phone, $excludeId);
     }
 

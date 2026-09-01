@@ -123,7 +123,8 @@ class SupplierController
     {
         $data = [
             'name'    => \trim((string) ($input['name']    ?? '')),
-            'phone'   => \trim((string) ($input['phone']   ?? '')),
+            // CR-10: optional free text; blank stores NULL so it is exempt from UNIQUE.
+            'phone'   => \trim((string) ($input['phone']   ?? '')) ?: null,
             'email'   => \trim((string) ($input['email']   ?? '')) ?: null,
             'address' => \trim((string) ($input['address'] ?? '')) ?: null,
             'gstin'   => \strtoupper(\trim((string) ($input['gstin'] ?? ''))) ?: null,
@@ -131,17 +132,16 @@ class SupplierController
             'remarks' => \trim((string) ($input['remarks'] ?? '')) ?: null,
         ];
 
+        // CR-10: phone is neither required nor format-checked any more — length only.
         $v = Validator::make([
                 'name'  => $data['name'],
-                'phone' => $data['phone'],
+                'phone' => $data['phone'] ?? '',
                 'email' => $data['email'] ?? '',
                 'gstin' => $data['gstin'] ?? '',
             ])
             ->required('name')
             ->max('name', 150)
-            ->required('phone')
             ->max('phone', 20)
-            ->phone('phone')
             ->max('email', 150)
             ->gstin('gstin');
 
