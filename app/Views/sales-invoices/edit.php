@@ -194,6 +194,7 @@
                                             data-addsub="<?= e($l['addsub_percent']) ?>"
                                             data-tax-rate="<?= e($l['tax_rate']) ?>"
                                             data-salesman="<?= (int) ($l['salesman_id'] ?? 0) ?>"
+                                            data-comm-override="<?= $l['commission_rate_override'] === null ? '' : e((string) $l['commission_rate_override']) ?>"
                                             data-is-composite="<?= (int) $l['is_composite_line'] ?>">
                                         <i class="bi bi-pencil"></i>
                                     </button>
@@ -301,6 +302,14 @@
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small" title="Leave blank to use the salesman's own rate. Enter 0 for no commission on this sale.">
+                            Comm %
+                        </label>
+                        <input type="number" name="commission_rate_override" id="add_commission_override"
+                               min="0" max="100" step="0.01"
+                               class="form-control form-control-sm" placeholder="auto">
                     </div>
                     <div class="col-md-1 text-end">
                         <button class="btn btn-sm btn-primary w-100">
@@ -663,6 +672,15 @@
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label small" for="edit_commission_override">Commission % (this sale)</label>
+                            <input type="number" name="commission_rate_override" id="edit_commission_override"
+                                   min="0" max="100" step="0.01"
+                                   class="form-control form-control-sm" placeholder="auto">
+                            <div class="form-text">
+                                Blank uses the salesman's own rate. Enter 0 for no commission on this line.
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -744,6 +762,10 @@ document.addEventListener('DOMContentLoaded', function () {
             $('#edit_addsub').val(d.addsub);
             $('#edit_tax_rate').val(d.taxRate);
             $('#edit_salesman_id').val(d.salesman || '');
+            // CR-6: '' means "use the salesman's rate"; '0' is a real 0% and must survive.
+            $('#edit_commission_override').val(
+                (d.commOverride === undefined || d.commOverride === null) ? '' : d.commOverride
+            );
             const isComp = d.isComposite === '1';
             $('#edit_composite_notice').toggleClass('d-none', !isComp);
             $('#edit_quantity').prop('readonly', isComp);

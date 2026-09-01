@@ -439,6 +439,9 @@ $router->get('/reports/due-list/csv',               [ReportsController::class, '
 $router->post('/due-list/invoice/{id}/term',        [DueTermController::class, 'updateInvoice'],          $can('reports_due_list', 'update'));
 $router->post('/due-list/customer/{id}/term',       [DueTermController::class, 'updateCustomer'],         $can('reports_due_list', 'update'));
 
+// Returned Salesman Account (CR-6). Read-only over sales_return_lines.
+$router->get('/reports/returned-salesman',          [ReportsController::class, 'returnedSalesmanAccount'], $can('reports_returned_salesman', 'view'));
+
 $router->get('/reports/cash-flow',                  [ReportsController::class, 'cashFlow'],               $can('reports_cash_flow', 'view'));
 $router->get('/reports/balance-sheet',              [ReportsController::class, 'balanceSheet'],           $can('reports_balance_sheet', 'view'));
 $router->get('/reports/profit-loss',                [ReportsController::class, 'profitLoss'],             $can('reports_profit_loss', 'view'));

@@ -85,6 +85,9 @@ class SalesInvoiceService
                     'is_composite_line'  => (int) ($line['is_composite_line'] ?? 0),
                     'display_name'       => (string) ($line['display_name'] ?? ''),
                     'salesman_id'        => $line['salesman_id'] ? (int) $line['salesman_id'] : null,
+                    // CR-6: carried through so the commission snapshot below can prefer it
+                    // over the salesman master rate. NULL = use the master rate, as before.
+                    'commission_rate_override' => $line['commission_rate_override'] ?? null,
                     'quantity'           => (float) $line['quantity'],
                     'subtotal'           => $c['subtotal'],
                     'tax_amount'         => $c['tax_amount'],
@@ -210,17 +213,26 @@ class SalesInvoiceService
                         : 0.0;
                 }
 
-                // Commission snapshot (per line). Rate from salesman master at finalize time.
+                // Commission snapshot (per line). CR-6: a per-line override wins over the
+                // salesman master rate; NULL (the default) keeps the original behaviour.
+                // The resolved rate is what gets snapshotted, so sales returns — which
+                // reverse using the sale line's snapshotted rate — stay consistent with
+                // whatever was actually charged.
                 $commRate = 0.0;
                 $commAmount = 0.0;
                 if ($row['salesman_id'] !== null) {
-                    if (!isset($commissionRateCache[$row['salesman_id']])) {
-                        $sm = $this->salesmen->find($row['salesman_id']);
-                        $commissionRateCache[$row['salesman_id']] = $sm
-                            ? (float) $sm['commission_rate']
-                            : 0.0;
+                    $override = $row['commission_rate_override'] ?? null;
+                    if ($override !== null && $override !== '') {
+                        $commRate = (float) $override;
+                    } else {
+                        if (!isset($commissionRateCache[$row['salesman_id']])) {
+                            $sm = $this->salesmen->find($row['salesman_id']);
+                            $commissionRateCache[$row['salesman_id']] = $sm
+                                ? (float) $sm['commission_rate']
+                                : 0.0;
+                        }
+                        $commRate = $commissionRateCache[$row['salesman_id']];
                     }
-                    $commRate = $commissionRateCache[$row['salesman_id']];
                     $commAmount = $this->pricing->money($row['subtotal'] * $commRate / 100);
                 }
 

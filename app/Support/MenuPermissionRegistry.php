@@ -298,6 +298,10 @@ final class MenuPermissionRegistry
                 'label' => 'Due List', 'abilities' => ['view','export','print','update'],
                 'section' => 'Reports', 'group' => 'Ledgers',
             ],
+            'reports_returned_salesman' => [
+                'label' => 'Returned Salesman Account', 'abilities' => ['view'],
+                'section' => 'Reports', 'group' => 'Ledgers',
+            ],
             'reports_cash_flow' => [
                 'label' => 'Cash Inflow / Outflow', 'abilities' => ['view','export'],
                 'section' => 'Reports', 'group' => 'Ledgers',

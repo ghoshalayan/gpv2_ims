@@ -10,6 +10,7 @@ use App\Repositories\DueListRepository;
 use App\Repositories\GstRegisterRepository;
 use App\Repositories\GstrFilingRepository;
 use App\Repositories\ProfitLossRepository;
+use App\Repositories\ReturnedSalesmanRepository;
 
 class ReportsController
 {
@@ -21,7 +22,53 @@ class ReportsController
         private ProfitLossRepository     $profitLoss    = new ProfitLossRepository(),
         private GstrFilingRepository     $gstrFiling    = new GstrFilingRepository(),
         private DueListRepository        $dueList       = new DueListRepository(),
+        private ReturnedSalesmanRepository $returnedSalesman = new ReturnedSalesmanRepository(),
     ) {}
+
+    /**
+     * CR-6 — Returned Salesman Account. Goods returned against sales a salesman was
+     * credited for, plus the commission reversed with them. Read-only: it reports over
+     * sales_return_lines, which the salesman passbook already nets, rather than keeping
+     * a second copy of the same reversals.
+     */
+    public function returnedSalesmanAccount(): string
+    {
+        [$from, $to] = $this->resolveDateRange();
+        $search = \trim((string) ($_GET['q'] ?? ''));
+        $rows   = $this->returnedSalesman->summary($from, $to, $search);
+
+        // Drill-down for one salesman, when asked for.
+        $focusId    = (int) ($_GET['salesman_id'] ?? 0);
+        $focusLines = [];
+        $focusName  = '';
+        $focusEarned = 0.0;
+        if ($focusId > 0) {
+            $focusLines  = $this->returnedSalesman->linesForSalesman($focusId, $from, $to);
+            $focusEarned = $this->returnedSalesman->commissionEarnedInRange($focusId, $from, $to);
+            foreach ($rows as $r) {
+                if ((int) $r['id'] === $focusId) { $focusName = (string) $r['name']; break; }
+            }
+        }
+
+        $totals = ['total_value_returned' => 0.0, 'total_cost_returned' => 0.0,
+                   'total_commission_reversed' => 0.0, 'total_qty_returned' => 0.0];
+        foreach ($rows as $r) {
+            foreach ($totals as $k => $_) { $totals[$k] += (float) $r[$k]; }
+        }
+
+        return view('reports/returned-salesman', [
+            'title'       => 'Returned Salesman Account',
+            'from'        => $from,
+            'to'          => $to,
+            'search'      => $search,
+            'rows'        => $rows,
+            'totals'      => $totals,
+            'focusId'     => $focusId,
+            'focusName'   => $focusName,
+            'focusLines'  => $focusLines,
+            'focusEarned' => $focusEarned,
+        ]);
+    }
 
     /** Column sets the due-list footer totals are summed over. */
     private const CUSTOMER_TOTAL_COLS = [

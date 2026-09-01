@@ -48,8 +48,9 @@ class SalesInvoiceLineRepository
             'INSERT INTO sales_invoice_lines
              (sales_invoice_id, line_no, product_id, is_composite_line, display_name, salesman_id,
               quantity, entry_unit_id, entry_quantity, unit_price, addsub_percent,
-              subtotal, tax_rate, tax_amount, cgst_amount, sgst_amount, igst_amount, line_total)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+              subtotal, tax_rate, tax_amount, cgst_amount, sgst_amount, igst_amount, line_total,
+              commission_rate_override)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['sales_invoice_id'], $data['line_no'], $data['product_id'],
@@ -60,6 +61,8 @@ class SalesInvoiceLineRepository
             $data['subtotal'], $data['tax_rate'], $data['tax_amount'],
             $data['cgst_amount'], $data['sgst_amount'], $data['igst_amount'],
             $data['line_total'],
+            // CR-6: null unless the user set a per-sale rate; resolved at finalize.
+            $data['commission_rate_override'] ?? null,
         ]);
         return (int) Db::pdo()->lastInsertId();
     }
@@ -92,6 +95,7 @@ class SalesInvoiceLineRepository
              SET display_name = ?, quantity = ?, entry_unit_id = NULL, entry_quantity = NULL,
                  unit_price = ?, addsub_percent = ?,
                  tax_rate = ?, salesman_id = ?,
+                 commission_rate_override = ?,
                  subtotal = ?, tax_amount = ?,
                  cgst_amount = ?, sgst_amount = ?, igst_amount = ?,
                  line_total = ?
@@ -100,6 +104,8 @@ class SalesInvoiceLineRepository
         $stmt->execute([
             $data['display_name'], $data['quantity'], $data['unit_price'], $data['addsub_percent'],
             $data['tax_rate'], $data['salesman_id'],
+            // CR-6: null clears the override so the line falls back to the salesman rate.
+            $data['commission_rate_override'] ?? null,
             $data['subtotal'], $data['tax_amount'],
             $data['cgst_amount'], $data['sgst_amount'], $data['igst_amount'],
             $data['line_total'], $lineId,

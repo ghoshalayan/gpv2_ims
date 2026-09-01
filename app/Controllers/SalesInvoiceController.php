@@ -174,6 +174,8 @@ class SalesInvoiceController
         $unitPrice     = (float) ($_POST['unit_price']     ?? 0);   // per BASE/stock unit
         $addsubPercent = (float) ($_POST['addsub_percent'] ?? 0);
         $taxRate       = (float) ($_POST['tax_rate']       ?? 0);
+        // CR-6: blank means "use the salesman's own rate" — distinct from an explicit 0%.
+        $commOverride  = $this->commissionOverrideInput();
 
         $errors = [];
         if ($productId <= 0)  { $errors[] = 'Product is required.'; }
@@ -181,6 +183,12 @@ class SalesInvoiceController
         if ($unitPrice <  0)  { $errors[] = 'Unit price cannot be negative.'; }
         if ($addsubPercent < -100 || $addsubPercent > 100) { $errors[] = 'AddSub % must be between -100 and 100.'; }
         if ($taxRate < 0 || $taxRate > 100) { $errors[] = 'Tax rate must be between 0 and 100.'; }
+        if ($commOverride !== null && ($commOverride < 0 || $commOverride > 100)) {
+            $errors[] = 'Commission % must be between 0 and 100.';
+        }
+        if ($commOverride !== null && $salesmanId === null) {
+            $errors[] = 'Assign a salesman before setting a commission rate for the line.';
+        }
 
         $product = $this->products->find($productId);
         if ($product === null) {
@@ -283,7 +291,7 @@ class SalesInvoiceController
             $invoice['bill_format'], $invoice['tax_treatment'], (int) $invoice['is_intra_state'] === 1
         );
 
-        $lineId = Db::transaction(function () use ($id, $productId, $isReversibleComposite, $displayName, $salesmanId, $quantity, $entryUnitIdStore, $entryQtyStore, $unitPrice, $addsubPercent, $taxRate, $computed, $expandedComponents) {
+        $lineId = Db::transaction(function () use ($id, $productId, $isReversibleComposite, $displayName, $salesmanId, $quantity, $entryUnitIdStore, $entryQtyStore, $unitPrice, $addsubPercent, $taxRate, $computed, $expandedComponents, $commOverride) {
             $lineId = $this->lineRepo->insert([
             'sales_invoice_id' => $id,
             'line_no'          => $this->lineRepo->nextLineNo($id),
@@ -291,6 +299,7 @@ class SalesInvoiceController
             'is_composite_line'=> $isReversibleComposite ? 1 : 0,
             'display_name'     => $displayName,
             'salesman_id'      => $salesmanId,
+            'commission_rate_override' => $commOverride,
             'quantity'         => $quantity,
             'entry_unit_id'    => $entryUnitIdStore,
             'entry_quantity'   => $entryQtyStore,
@@ -473,12 +482,19 @@ class SalesInvoiceController
         $addsubPercent = (float) ($_POST['addsub_percent'] ?? $line['addsub_percent']);
         $taxRate       = (float) ($_POST['tax_rate']       ?? $line['tax_rate']);
         $salesmanId    = ((int) ($_POST['salesman_id']     ?? 0)) ?: null;
+        $commOverride  = $this->commissionOverrideInput();
 
         $errors = [];
         if ($quantity  <= 0) { $errors[] = 'Quantity must be > 0.'; }
         if ($unitPrice <  0) { $errors[] = 'Unit price cannot be negative.'; }
         if ($addsubPercent < -100 || $addsubPercent > 100) { $errors[] = 'AddSub % must be between -100 and 100.'; }
         if ($taxRate < 0 || $taxRate > 100) { $errors[] = 'Tax rate must be between 0 and 100.'; }
+        if ($commOverride !== null && ($commOverride < 0 || $commOverride > 100)) {
+            $errors[] = 'Commission % must be between 0 and 100.';
+        }
+        if ($commOverride !== null && $salesmanId === null) {
+            $errors[] = 'Assign a salesman before setting a commission rate for the line.';
+        }
 
         // For composite lines, quantity change would require re-snapshotting components — block for v1.
         if ((int) $line['is_composite_line'] === 1 && (float) $line['quantity'] != $quantity) {
@@ -515,6 +531,7 @@ class SalesInvoiceController
             'addsub_percent' => $addsubPercent,
             'tax_rate'       => $taxRate,
             'salesman_id'    => $salesmanId,
+            'commission_rate_override' => $commOverride,
             'subtotal'       => $computed['subtotal'],
             'tax_amount'     => $computed['tax_amount'],
             'cgst_amount'    => $computed['cgst'],
@@ -525,6 +542,19 @@ class SalesInvoiceController
 
         Flash::success("Line updated: {$displayName}");
         return redirect("/sales-invoices/{$id}/edit");
+    }
+
+    /**
+     * CR-6 — read the per-line commission rate override.
+     *
+     * A blank field means "use the salesman's own rate" and is stored as NULL. That is
+     * deliberately different from an explicit 0, which means "no commission on this
+     * sale" and must be honoured rather than falling back to the master rate.
+     */
+    private function commissionOverrideInput(): ?float
+    {
+        $raw = \trim((string) ($_POST['commission_rate_override'] ?? ''));
+        return $raw === '' ? null : (float) $raw;
     }
 
     public function finalize(array $params): string
