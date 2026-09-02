@@ -14,6 +14,7 @@ first-time install only. This document covers only what is specific to *this* re
 | Schema changes | Additive only: new tables + nullable columns. No `DROP`. One `MODIFY` that widens `NOT NULL` to `NULL`. |
 | Downtime | None required |
 | Est. time | ~20 min including verification |
+| No SSH? | Fully deployable from the panel — see **§5A** |
 
 ---
 
@@ -150,6 +151,9 @@ php database/seed_permissions.php
 
 Expected: `migrate.php` applies exactly **0055 … 0059** and nothing else.
 
+> **No SSH access?** See **§5A** — the same schema change is a single SQL paste in
+> phpMyAdmin, and the permission seeder turns out not to be needed for this release.
+
 > **Never run `database/reseed_permissions.php` on production.** It DELETEs every row and
 > re-seeds from defaults, wiping custom role grants. `seed_permissions.php` only inserts
 > the keys a role is missing and never revokes anything.
@@ -197,6 +201,113 @@ The slab only **prefills** the price field on a purchase line and names the band
 from. It never locks the price, never rewrites a saved line, and the purchase finalize math
 is untouched. Turning the flag off restores current behaviour exactly and keeps the
 configuration.
+
+---
+
+## 5A. Deploying WITHOUT SSH (panel only)
+
+Everything above assumes a shell. If you cannot get SSH right now, the whole deploy is
+still doable from the MilesWeb panel — **no step is skipped, only performed differently.**
+
+The two shell commands in §4 are replaced by one SQL paste, because:
+
+- `php database/migrate.php` → runs the five migration files and records them. The bundled
+  script `database/release_cr1_cr11_manual.sql` does exactly the same thing in one paste,
+  including the `migrations` tracking rows, so a later SSH `migrate.php` sees them as
+  already applied and reports *"Nothing to migrate"*.
+- `php database/seed_permissions.php` → **not needed for this release at all.** None of the
+  four new permission keys are in the default grants for `subadmin` or `cashier`, so the
+  seeder would grant nothing. Admin is a master switch and sees every new screen
+  immediately. Other roles are granted access through the **Role Permissions** screen in
+  the app (§5A.5) — a UI, not a CLI.
+
+### 5A.1 Back up the database — still mandatory
+
+Panel → **phpMyAdmin** → select the IMS database → **Export** → Format **SQL** → **Go**.
+Save the `.sql` file somewhere safe off the server. This replaces `mysqldump` and is still
+the only rollback for the schema changes.
+
+> Do not continue until you have this file and it is not 0 bytes.
+
+### 5A.2 Upload the files
+
+Panel → **File Manager** → navigate to `ims.srasingerkone.org/`.
+
+Upload the new and modified files from §3, preserving folder structure. Uploading a zip and
+extracting in place is fine and usually faster; if you do, extract into the project root so
+paths line up, and delete the zip afterwards.
+
+- **Do not** upload `.env` — it is host-specific and already correct on the server.
+- **Do not** touch `~/public_html` — that is a different live website.
+- `database/release_cr1_cr11_manual.sql` does not need uploading; you paste its contents in
+  the next step. Uploading it is harmless (it sits above the web root).
+
+### 5A.3 Apply the schema
+
+Panel → **phpMyAdmin** → select the IMS database → **SQL** tab.
+
+Paste the entire contents of `database/release_cr1_cr11_manual.sql` and press **Go**.
+
+It runs migrations 0055–0059 verbatim, then records all five in the `migrations` table, then
+prints two verification result sets:
+
+- five rows: `0055_due_term_tagging.sql` … `0059_optional_freetext_phone.sql`
+- one row: `enable_brand_slab_rates` = `0`
+
+If you see both, the schema step is complete.
+
+> **Run it once.** It is deliberately *not* re-runnable: a second run fails on the first
+> duplicate object rather than silently doing something odd. If it stops partway, restore
+> the export from §5A.1 and start again — do not re-run it on a half-applied database.
+
+### 5A.4 Smoke-test as admin
+
+Log in as **admin**. Because admin is a master switch, every new screen is visible with no
+permission work: Reports → Due List, Reports → Returned Salesman A/c, Product Management →
+Rate Management, and Brands → Slabs.
+
+Then run the §6 verification checklist. It is all in-browser — **System → Integrity Check**
+replaces any need for shell access.
+
+### 5A.5 Grant the new screens to other roles (optional)
+
+Only if `subadmin` / `cashier` users should see them. In the app: **Role Permissions** →
+pick the role → tick the abilities for `reports_due_list`, `reports_returned_salesman`,
+`rate_changes`, `brand_slabs` → save. The new keys appear in that tree automatically.
+
+### 5A.6 When SSH comes back
+
+Nothing is pending, but you can confirm the state agrees:
+
+```bash
+cd ~/ims.srasingerkone.org
+php database/migrate.php        # must print: Nothing to migrate.
+php database/seed_permissions.php   # optional; grants only what a role is missing
+```
+
+If `migrate.php` reports anything other than *"Nothing to migrate"*, the SQL paste did not
+finish — restore the backup and redo §5A.3.
+
+### What you cannot do without a shell
+
+| Task | Without SSH |
+|---|---|
+| DB backup | phpMyAdmin → Export ✅ |
+| Run migrations | The bundled SQL script ✅ |
+| Seed permissions | Not needed; Role Permissions UI covers it ✅ |
+| Reset a locked-out admin password | ❌ needs SSH (SOP §7) — make sure you can log in **before** you start |
+| Read `storage/logs/app.log` | File Manager can open it ✅ (slower, but works) |
+
+> The one genuine risk: if you get locked out of the admin account mid-deploy, the password
+> reset in SOP §7 requires a shell. Confirm you can log in as admin *before* uploading.
+
+### Verified, not assumed
+
+This path was tested end-to-end against a copy of the schema: the bundled SQL was rolled
+back to the pre-release state, re-applied through a SQL console, and produced a schema
+**identical** to the one `migrate.php` builds — same columns, same indexes, same seeded
+setting. A subsequent `migrate.php` then correctly reported *"Nothing to migrate"*, and the
+full 218-assertion regression plus all 12 integrity invariants passed on the result.
 
 ---
 
