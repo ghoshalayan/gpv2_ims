@@ -256,6 +256,11 @@ prints two verification result sets:
 
 If you see both, the schema step is complete.
 
+**Confirm it properly** — paste `database/verify_cr1_cr11.sql` into the same SQL tab. It is
+read-only and returns 15 rows; **every one must read `OK`**. A `FAIL` means that part of the
+schema did not apply: restore the export from §5A.1 and re-run the release script rather
+than patching by hand.
+
 > **Run it once.** It is deliberately *not* re-runnable: a second run fails on the first
 > duplicate object rather than silently doing something odd. If it stops partway, restore
 > the export from §5A.1 and start again — do not re-run it on a half-applied database.
