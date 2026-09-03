@@ -49,6 +49,12 @@ $roleBadge = function (array $u): string {
                                     <?php if ($isSelf): ?>
                                         <span class="badge text-bg-dark ms-1">you</span>
                                     <?php endif; ?>
+                                    <?php if ((int) ($u['is_protected'] ?? 0) === 1): ?>
+                                        <span class="badge text-bg-warning ms-1"
+                                              title="Protected account — cannot be renamed, deactivated, or have its role changed. Password can still be changed.">
+                                            <i class="bi bi-shield-lock"></i> protected
+                                        </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="font-monospace small"><?= e($u['username']) ?></td>
                                 <td class="text-nowrap"><?= e($u['phone']) ?></td>
@@ -84,6 +90,9 @@ $roleBadge = function (array $u): string {
                                     <?php if ($isSelf): ?>
                                         <button class="btn btn-sm btn-outline-secondary" disabled
                                                 title="Can't disable your own account">Disable</button>
+                                    <?php elseif ((int) ($u['is_protected'] ?? 0) === 1): ?>
+                                        <button class="btn btn-sm btn-outline-secondary" disabled
+                                                title="Protected account — cannot be deactivated">Disable</button>
                                     <?php else: ?>
                                         <form method="post" action="<?= url('/users/' . $u['id'] . '/toggle') ?>"
                                               class="d-inline"

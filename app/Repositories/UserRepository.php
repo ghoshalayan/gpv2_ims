@@ -12,7 +12,7 @@ class UserRepository
     public function all(): array
     {
         return Db::pdo()->query(
-            'SELECT u.id, u.name, u.phone, u.email, u.username, u.role_id,
+            'SELECT u.id, u.name, u.phone, u.email, u.username, u.role_id, u.is_protected,
                     r.role_key AS role, r.label AS role_label,
                     u.status, u.last_login_at,
                     e.id AS linked_employee_id
@@ -27,7 +27,7 @@ class UserRepository
     {
         $stmt = Db::pdo()->prepare(
             'SELECT u.id, u.name, u.phone, u.email, u.username, u.password_hash,
-                    u.role_id, r.role_key AS role, r.label AS role_label,
+                    u.role_id, u.is_protected, r.role_key AS role, r.label AS role_label,
                     u.status, u.last_login_at
              FROM users u
              JOIN roles r ON r.id = u.role_id
@@ -42,7 +42,7 @@ class UserRepository
     {
         $stmt = Db::pdo()->prepare(
             'SELECT u.id, u.name, u.phone, u.email, u.address, u.username,
-                    u.role_id, r.role_key AS role, r.label AS role_label,
+                    u.role_id, u.is_protected, r.role_key AS role, r.label AS role_label,
                     u.status, u.last_login_at
              FROM users u
              JOIN roles r ON r.id = u.role_id

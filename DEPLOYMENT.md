@@ -10,7 +10,7 @@ first-time install only. This document covers only what is specific to *this* re
 |---|---|
 | Target | `https://ims.srasingerkone.org` (MilesWeb, PHP 8.2, no Composer) |
 | Baseline tag | `prod-baseline` — the tree currently running in production |
-| Change surface | 23 new files, 24 modified, 5 new migrations (git also reports `README.md` as modified — unrelated, see §3) |
+| Change surface | 26 new files, 27 modified, 6 new migrations (git also reports `README.md` as modified — unrelated, see §3) |
 | Schema changes | Additive only: new tables + nullable columns. No `DROP`. One `MODIFY` that widens `NOT NULL` to `NULL`. |
 | Downtime | None required |
 | Est. time | ~20 min including verification |
@@ -178,6 +178,7 @@ immediately; other roles get their defaults from the seeder, and you can adjust 
 | `0057_init_brand_purchase_slabs` | Creates `brand_purchase_slabs`, `product_slab_rates`; seeds `enable_brand_slab_rates` = `'0'` | Yes — drop 2 tables |
 | `0058_sales_line_commission_override` | Adds nullable `sales_invoice_lines.commission_rate_override` | Yes — drop 1 column |
 | `0059_optional_freetext_phone` | `customers.phone` / `suppliers.phone` become nullable | Yes, **but only while no NULLs have been saved** |
+| `0060_protected_superadmin` | Adds `users.is_protected`; creates the protected `superadmin` account | Yes — drop 1 column, delete 1 row |
 
 No migration back-fills or rewrites existing rows. Every new column is nullable, and NULL
 means "behave exactly as before".

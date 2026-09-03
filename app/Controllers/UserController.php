@@ -96,6 +96,15 @@ class UserController
             return redirect("/users/{$id}/edit");
         }
 
+        // Protected accounts (break-glass admin): identity, role and status are fixed.
+        // The password and cosmetic fields stay editable on purpose - see migration 0060.
+        $protectedGuard = $this->guardProtectedAccount($user, $data);
+        if ($protectedGuard !== null) {
+            flash_old($_POST);
+            Flash::error($protectedGuard);
+            return redirect("/users/{$id}/edit");
+        }
+
         // Self-protection and last-admin protection.
         $guard = $this->guardRoleAndStatusChange($user, $data, $isSelf);
         if ($guard !== null) {
@@ -123,6 +132,10 @@ class UserController
         }
         if ($id === (int) Auth::id()) {
             Flash::error('You cannot deactivate your own account.');
+            return redirect('/users');
+        }
+        if ((int) ($user['is_protected'] ?? 0) === 1 && $user['status'] === 'active') {
+            Flash::error("'{$user['name']}' is a protected account and cannot be deactivated.");
             return redirect('/users');
         }
         $newStatus = $user['status'] === 'active' ? 'inactive' : 'active';
@@ -212,6 +225,34 @@ class UserController
      * Enforces self-protection and last-admin protection.
      * Returns an error message (string) if blocked, or null if allowed.
      */
+    /**
+     * Protected ("break-glass") accounts: username, role and status are immutable, so
+     * ordinary in-app administration can never lock the business out of its own system.
+     *
+     * The password is intentionally NOT protected. An account that can neither be
+     * disabled nor have its password rotated would be an unfixable backdoor; keeping
+     * rotation available is the control that still works on an account you cannot
+     * switch off.
+     *
+     * @return string|null error message, or null when the change is allowed
+     */
+    private function guardProtectedAccount(array $user, array $data): ?string
+    {
+        if ((int) ($user['is_protected'] ?? 0) !== 1) {
+            return null;
+        }
+        if (isset($data['username']) && $data['username'] !== $user['username']) {
+            return "'{$user['name']}' is a protected account - its username cannot be changed.";
+        }
+        if (isset($data['role_id']) && (int) $data['role_id'] !== (int) $user['role_id']) {
+            return "'{$user['name']}' is a protected account - its role cannot be changed.";
+        }
+        if (isset($data['status']) && $data['status'] !== 'active') {
+            return "'{$user['name']}' is a protected account - it cannot be deactivated.";
+        }
+        return null;
+    }
+
     private function guardRoleAndStatusChange(array $current, array $new, bool $isSelf): ?string
     {
         $id = (int) $current['id'];
