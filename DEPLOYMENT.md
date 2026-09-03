@@ -300,11 +300,23 @@ finish — restore the backup and redo §5A.3.
 | DB backup | phpMyAdmin → Export ✅ |
 | Run migrations | The bundled SQL script ✅ |
 | Seed permissions | Not needed; Role Permissions UI covers it ✅ |
-| Reset a locked-out admin password | ❌ needs SSH (SOP §7) — make sure you can log in **before** you start |
+| Reset a locked-out admin password | ✅ `database/reset_admin_password.sql` in phpMyAdmin (see below) |
 | Read `storage/logs/app.log` | File Manager can open it ✅ (slower, but works) |
 
-> The one genuine risk: if you get locked out of the admin account mid-deploy, the password
-> reset in SOP §7 requires a shell. Confirm you can log in as admin *before* uploading.
+**Locked out of admin?** SOP §7 resets it over SSH; without a shell use these two scripts
+in phpMyAdmin instead:
+
+- `database/diagnose_login.sql` — read-only. Shows every account with its role, status and
+  whether the stored hash is valid bcrypt, so you can see *which* of the three failure
+  causes applies (`AuthService::attempt()` rejects on: username not found, status not
+  `active`, or password mismatch). It never outputs `password_hash`.
+- `database/reset_admin_password.sql` — sets a known bcrypt hash, reactivates a disabled
+  account, repairs a missing role, or creates a recovery admin. Run only the block you
+  need, then log in and **change the password in the app immediately**.
+
+There is no `superadmin` role in this system. Roles live in the `roles` table
+(`admin` / `subadmin` / `cashier`) and users join to it via `users.role_id`; the bootstrap
+account is normally username `admin`.
 
 ### Verified, not assumed
 
