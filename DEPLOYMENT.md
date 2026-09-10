@@ -372,6 +372,10 @@ Run in order. Stop and roll back (§8) if any step fails.
 **D. Security** — the SOP §11 checklist, especially `APP_DEBUG=false` and `.env` at
 `chmod 600`.
 
+**E. Hand the staff the manual** — [USER-MANUAL.md](USER-MANUAL.md) covers every new
+screen in plain language, with the menu paths and the gotchas worth knowing before
+anyone starts using them.
+
 ---
 
 ## 7. Known limitations shipped deliberately
