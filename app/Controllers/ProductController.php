@@ -26,6 +26,7 @@ class ProductController
         private InventoryService               $inventory     = new InventoryService(),
         private \App\Repositories\UnitRepository        $units        = new \App\Repositories\UnitRepository(),
         private \App\Repositories\ProductUnitRepository $productUnits = new \App\Repositories\ProductUnitRepository(),
+        private \App\Repositories\StockMovementRepository $movements = new \App\Repositories\StockMovementRepository(),
     ) {}
 
     public function index(): string
@@ -153,6 +154,25 @@ class ProductController
                             : 'Opening cost benchmark (no opening stock)',
                         $userId
                     );
+                }
+
+                // Opening stock must be recorded in the stock-movement ledger too.
+                // ProductRepository::insert() writes quantity_on_hand straight into the row,
+                // so without this the ledger starts life behind the stored quantity by
+                // exactly the opening amount, and the Integrity Check reports the product as
+                // drifted forever after. Same transaction as the insert, so the two can never
+                // disagree.
+                $openingQty = (float) ($data['opening_quantity'] ?? 0);
+                if ($openingQty > 0) {
+                    $this->movements->insert($productId, [
+                        'direction'      => 'opening',
+                        'quantity_delta' => $openingQty,
+                        'unit_cost'      => (float) ($data['opening_avg_cost'] ?? 0),
+                        'balance_after'  => $openingQty,
+                        'source'         => 'opening',
+                        'notes'          => 'Opening stock at product creation',
+                        'user_id'        => $userId,
+                    ]);
                 }
 
                 // Composite recipe — transactional so product + recipe save together (or not at all).
