@@ -11,3 +11,8 @@ Thumbs.db
 
 # Build/upload artifacts - never commit these
 *.zip
+
+# Database dumps dropped in the project root. Leading slash = root only, so the
+# tracked migrations under database/ are unaffected. These contain live customer
+# data and password hashes - never commit them, never deploy them.
+/*.sql

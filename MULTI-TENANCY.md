@@ -11,6 +11,15 @@ Design for running several independent businesses from one GP ENTERPRISE IMS cod
 | Scale assumed | 2–5 tenants on MilesWeb shared hosting |
 | Estimated work | ~1 day, plus provisioning per tenant |
 
+**Verified against a copy of the live database (10 Oct 2026):** production runs
+**MariaDB 11.4.13** (not MySQL) on **PHP 8.3.33** (the SOP says 8.2 — documentation drift,
+harmless but worth correcting). Its schema is **identical** to what `migrate.php` builds from
+the 60 migrations: 58 tables each side, same columns, no manual tables and no missing ones.
+That matters here — it means a tenant database provisioned by running the migrations will
+match production exactly, with no hand-patching. Current data volume is small (3,574 products,
+157 customers, 302 sales invoices, 6,351 stock movements), so a database per tenant costs
+very little.
+
 ---
 
 ## 1. The requirement that drives everything
