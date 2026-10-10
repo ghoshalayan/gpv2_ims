@@ -92,6 +92,30 @@
             </button>
         <?php endif; ?>
         <a class="navbar-brand text-uppercase fw-bold" href="<?= url('/') ?>"><?= e(env('APP_NAME')) ?></a>
+        <?php
+            // Which business am I in? Only shown once multi-tenancy is configured, so a
+            // single-tenant install looks exactly as it did before.
+            $__tenant = \App\Support\Tenant::current();
+            $__isSa   = \App\Support\Superadmin::check();
+        ?>
+        <?php if ($__tenant !== null && (\App\Support\Db::controlAvailable() || $__isSa)): ?>
+            <span class="badge bg-light text-dark me-2" title="You are working inside this business">
+                <i class="bi bi-building"></i> <?= e($__tenant['label']) ?>
+            </span>
+            <?php if ($__isSa): ?>
+                <!-- A superadmin is a guest here, not one of this tenant's users. Make that
+                     obvious and give them a one-click way back out. -->
+                <span class="badge bg-warning text-dark me-2">
+                    <i class="bi bi-shield-lock"></i> system admin
+                </span>
+                <form method="post" action="<?= url('/superadmin/leave') ?>" class="d-inline me-2">
+                    <?= \App\Support\Csrf::field() ?>
+                    <button class="btn btn-sm btn-outline-light py-0">
+                        <i class="bi bi-box-arrow-left"></i> Leave tenant
+                    </button>
+                </form>
+            <?php endif; ?>
+        <?php endif; ?>
         <div class="ms-auto d-flex align-items-center gap-3">
             <span class="navbar-text text-white-50 small d-none d-lg-inline">
                 <?= e(env('APP_ENV')) ?> &middot; php <?= e(PHP_VERSION) ?>

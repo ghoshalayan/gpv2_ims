@@ -27,6 +27,13 @@ class Permissions
 
     public static function can(string $resourceKey, string $ability = 'view'): bool
     {
+        // A superadmin operating inside a tenant has no user row in that tenant's
+        // database, so it is authorised by identity rather than by grants. This is
+        // the mechanism behind "tenant admins come under the superadmin".
+        if (Superadmin::check() && Tenant::check()) {
+            return true;
+        }
+
         $userId = Auth::id();
         if ($userId === null) {
             return false;

@@ -44,6 +44,7 @@ use App\Controllers\SalesPaymentController;
 use App\Controllers\SalesReturnController;
 use App\Controllers\SalesmanController;
 use App\Controllers\SettingsController;
+use App\Controllers\SuperadminController;
 use App\Controllers\StockAdjustmentController;
 use App\Controllers\SubcategoryController;
 use App\Controllers\SupplierAdvanceController;
@@ -55,6 +56,7 @@ use App\Controllers\UserPermissionController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\PermissionMiddleware;
+use App\Middleware\SuperadminMiddleware;
 
 $router->addMiddleware(CsrfMiddleware::class);
 
@@ -80,6 +82,21 @@ $router->post('/login',   [AuthController::class, 'login']);
 $auth = [AuthMiddleware::class];
 $can  = static fn (string $resource, string $ability = 'view'): array =>
     [AuthMiddleware::class, new PermissionMiddleware($resource, $ability)];
+
+// ---------------------------------------------------------------------------
+// Control plane (multi-tenancy). Guarded by SuperadminMiddleware, NOT by the
+// tenant permission system - a tenant's own admin is not a superadmin and is
+// turned away here. These routes read the control database only.
+// ---------------------------------------------------------------------------
+$sa = [SuperadminMiddleware::class];
+$router->get('/superadmin',                          [SuperadminController::class, 'index'],        $sa);
+$router->get('/superadmin/tenants/create',           [SuperadminController::class, 'createForm'],   $sa);
+$router->post('/superadmin/tenants',                 [SuperadminController::class, 'store'],        $sa);
+$router->post('/superadmin/tenants/{id}/toggle',     [SuperadminController::class, 'toggleStatus'], $sa);
+$router->post('/superadmin/tenants/{id}/enter',      [SuperadminController::class, 'enterTenant'],  $sa);
+$router->post('/superadmin/leave',                   [SuperadminController::class, 'leaveTenant'],  $sa);
+$router->get('/superadmin/password',                 [SuperadminController::class, 'showPassword'], $sa);
+$router->post('/superadmin/password',                [SuperadminController::class, 'updatePassword'], $sa);
 
 $router->get('/logout',    [AuthController::class, 'logout'],     $auth);
 $router->get('/help',      [HelpController::class, 'index'],      $auth);

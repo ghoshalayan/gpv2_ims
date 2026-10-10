@@ -40,3 +40,26 @@ session_set_cookie_params([
     'samesite' => 'Lax',
 ]);
 session_start();
+
+/**
+ * Cross-tenant session guard.
+ *
+ * PHP stores every session in one shared directory on the server. The session
+ * COOKIE is already safe — no cookie domain is set above, so it is host-only — but
+ * the STORE is not: a session id created while working in one tenant would still
+ * resolve if presented in another context, carrying that tenant's authenticated
+ * user with it.
+ *
+ * So the tenant is stamped into the session and checked on every request. If the
+ * stamp does not match the tenant now selected, the session is discarded rather
+ * than trusted. Costs nothing when single-tenant (both sides are null).
+ */
+$__tenantNow = $_SESSION['_tenant']['tenant_key'] ?? null;
+if (!array_key_exists('_tenant_stamp', $_SESSION)) {
+    $_SESSION['_tenant_stamp'] = $__tenantNow;
+} elseif ($_SESSION['_tenant_stamp'] !== $__tenantNow) {
+    $_SESSION = [];
+    session_regenerate_id(true);
+    $_SESSION['_tenant_stamp'] = null;
+}
+unset($__tenantNow);
