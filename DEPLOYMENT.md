@@ -331,50 +331,97 @@ full 218-assertion regression plus all 12 integrity invariants passed on the res
 
 ## 6. Verification
 
-Run in order. Stop and roll back (§8) if any step fails.
+Run in order. Stop and roll back (§8) if any step fails. **Everything here works from a
+browser** — no shell required.
 
-**A. System health**
+### 6.0 Did the files actually land?
 
-1. Log in — dashboard and sidebar render.
-2. **System → Integrity Check** — all **12** invariants pass.
-3. `tail -n 50 storage/logs/app.log` — no new errors.
-4. Hard-refresh (Ctrl-F5) if the sidebar looks stale.
+File Manager uploads can silently drop a file, and a missing class shows up as a 500 only
+when someone opens that screen. Rather than check 58 files one by one, open the screens that
+between them exercise all of them. **Each must load without error.**
 
-**B. Nothing existing broke** — the important part, since these paths handle money:
+| Open this | Proves these uploaded |
+|---|---|
+| Log in — sidebar shows **Due List**, **Returned Salesman A/c**, **Rate Management** | `routes/web.php`, `MenuPermissionRegistry.php`, `sidebar.php` |
+| **Reports → Due List** (both tabs) | `DueListRepository`, `ReportsController`, `reports/due-list.php` |
+| Due List → **Print / PDF** | `reports/due-list-print.php` |
+| Due List → change a **Default term** | `DueTermController` |
+| **Reports → Returned Salesman A/c** | `ReturnedSalesmanRepository`, `reports/returned-salesman.php` |
+| **Product Management → Rate Management** | `RateChangeController/Service/Repository`, `rate-changes/index.php` |
+| **Brands** — the row shows a **Slabs** button → open it | `BrandSlabController/Repository`, `SlabRateService`, `brand-slabs/index.php`, `brands/index.php` |
+| A customer → **Passbook** → **Print / PDF** | `PassbookController`, `passbook/print/a4.php`, `passbook/show.php` |
+| The **WhatsApp** button appears on that passbook | `Whatsapp.php` |
+| **Products** — Category / Stock / price filters present | `ProductController`, `ProductRepository`, `products/index.php` |
+| Open a draft **Sales Invoice** — line row has **Comm %** | `SalesInvoiceController/Service`, `SalesInvoiceLineRepository`, `sales-invoices/edit.php` |
+| Open a draft **Purchase Invoice** | `PurchaseInvoiceController`, `purchase-invoices/edit.php` |
+| **Customer** form — Phone is not marked required | `CustomerController`, `CustomerRepository`, `customers/_form.php` |
+| **Supplier** form — same | `SupplierController`, `SupplierRepository`, `suppliers/_form.php` |
+| **Settings** — "Slab purchase rates" switch present | `SettingsController`, `settings/index.php` |
+| **Users** — `superadmin` shows a **protected** badge, Disable greyed out | `UserController`, `UserRepository`, `users/index.php` |
 
-5. Create and finalize a **sales invoice**; confirm totals, round-off and commission are
-   what you would have expected before this release.
-6. Create and finalize a **purchase invoice** (flag still off — the price field must behave
-   exactly as it does today).
+A blank page or 500 means that file did not upload — re-upload it and retry. Hard-refresh
+(Ctrl-F5) first if the sidebar looks stale.
+
+> Between them these checks exercise **44 of the 45 PHP files** in the release. The only one
+> they cannot reach is `database/seed_permissions.php`, which is a CLI script referenced by no
+> route — a missing copy cannot break any page, and it is not needed for this release anyway
+> (§4).
+
+### 6.1 System health
+
+1. **System → Integrity Check** — expect **12 invariants, 0 issues** (after 6.2 below).
+2. Errors are readable without SSH: File Manager → `ims.srasingerkone.org/storage/logs/` →
+   open `app.log` and look at the end for today's date.
+
+### 6.2 Repair the stock-ledger drift
+
+The Integrity Check currently reports 2 products whose stored quantity disagrees with the
+movement ledger. Cause and fix are in the commit for `repair_stock_drift.sql`.
+
+1. Take a fresh phpMyAdmin **Export** first.
+2. Run `database/diagnose_stock_drift.sql` (read-only) — keep the output.
+3. Run `database/repair_stock_drift.sql`. Its step 3 must return **zero rows**.
+4. Re-run **System → Integrity Check** — now expect **0 issues**.
+
+> The repair only adds the missing ledger entry. It never changes `quantity_on_hand`, so
+> your physical stock figures stay exactly as counted.
+
+### 6.3 Nothing existing broke
+
+The important part — these paths handle money.
+
+5. Create and finalize a **sales invoice**. Totals, round-off and commission must be what you
+   would have expected before this release.
+6. Create and finalize a **purchase invoice**. With the slab flag still off, the price field
+   must behave exactly as it does today.
 7. Record a **payment**; confirm the invoice due updates.
-8. Re-run **Integrity Check**.
+8. Re-run **Integrity Check** — still 0 issues.
 
-**C. New features**
+### 6.4 New features
 
-9. **Reports → Due List**, Customers tab. Cross-check the grand total against **Reports →
-   Balance Sheet** receivables (`customer_receivables` + `legacy_customer_recv`). They are
-   built from the same base and must agree.
-10. Salesmen tab — Commission / Cash / Total. Cross-check one salesman against their
-    **Passbook**; the commission figure must match.
-11. Tag an invoice short/long-term; confirm it moves between buckets and the total is
-    unchanged. Then Print and Export CSV.
-12. **Passbook → a customer** — Print/PDF opens; the WhatsApp button appears only when the
-    customer has a phone.
+9. **Due List**, Customers tab — cross-check the grand total against **Reports → Balance
+   Sheet** receivables (`customer_receivables` + `legacy_customer_recv`). Built from the same
+   base; they must agree.
+10. Salesmen tab — cross-check one salesman's **Commission** against their **Passbook**.
+11. Tag an invoice short/long-term — it moves bucket, and **Total Due does not change**.
+    Then Print and Export CSV.
+12. **Passbook → a customer** — Print/PDF opens; WhatsApp appears only with a phone saved.
 13. **Products** — filter by category, stock state and price band.
-14. **Rate Management** — preview a small change, check the affected list, apply, then
-    **revert** it and confirm prices return.
-15. **Reports → Returned Salesman A/c** — figures reconcile with the salesman passbook.
-16. **Sales invoice line** — set a per-line Commission %, finalize, confirm the snapshot
-    used the override. Leaving it blank must still use the salesman's own rate.
-17. **Customers** — save one with a blank phone and one with a free-text phone
-    (e.g. `033-2345 6789`). Both must save.
+14. **Rate Management** — preview a small change, apply it, then **Revert** and confirm the
+    prices come back.
+15. **Returned Salesman A/c** — figures reconcile with the salesman passbook.
+16. **Sales invoice line** — set a per-line Commission %, finalize, confirm the snapshot used
+    the override. Blank must still use the salesman's own rate.
+17. **Customers** — save one with a blank phone and one with free text (`033-2345 6789`).
 
-**D. Security** — the SOP §11 checklist, especially `APP_DEBUG=false` and `.env` at
-`chmod 600`.
+### 6.5 Security
 
-**E. Hand the staff the manual** — [USER-MANUAL.md](USER-MANUAL.md) covers every new
-screen in plain language, with the menu paths and the gotchas worth knowing before
-anyone starts using them.
+SOP §11, especially `APP_DEBUG=false`. Also change the `superadmin` temporary password now if
+you have not already.
+
+### 6.6 Hand over the manual
+
+[USER-MANUAL.md](USER-MANUAL.md) covers every new screen in plain language.
 
 ---
 
