@@ -4,69 +4,42 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Which tenant the current request belongs to.
+ * Which business the current request belongs to.
  *
- * The app runs one codebase over several tenant databases. Every business table
- * lives inside a tenant database, so two tenants can hold the same customer,
- * product or supplier as completely unrelated records — isolation is a property
- * of the connection, not of remembering a WHERE clause.
+ * All tenants share one database. Every business table is a view filtered by the
+ * `@app_tenant` session variable, which Db binds from the id held here — so two
+ * tenants can hold the same customer, product or supplier as entirely unrelated
+ * records, and no query in the app has to mention a tenant at all.
  *
- * The selected tenant lives in the session and is re-read on every request. It is
- * set by signing in to a tenant, or by a superadmin entering one.
- *
- * SECURITY: the database name is never taken from user input. It is read from the
- * `tenants` table in the control database and additionally format-checked here
- * before it reaches a DSN, so a tampered session cannot point the app at an
- * arbitrary database.
+ * The selection lives in the session and is re-read each request. It is set by
+ * signing in to a business, or by a superadmin entering one.
  */
 class Tenant
 {
     private const SESSION_KEY = '_tenant';
 
-    /** Cached for the life of the request only — PHP is shared-nothing. */
-    private static ?array $current = null;
-
-    /** A tenant is selected (a tenant user signed in, or a superadmin entered one). */
+    /** A business is selected for this request. */
     public static function check(): bool
     {
-        return isset($_SESSION[self::SESSION_KEY]['database_name']);
+        return isset($_SESSION[self::SESSION_KEY]['id']);
     }
 
     /**
-     * The active tenant, or null when none is selected — which is the normal state
-     * for a superadmin sitting in the console.
+     * The active tenant, or null when none is selected — the normal state for a
+     * superadmin sitting in the console, and for the login page.
      *
-     * @return array{id:int, tenant_key:string, label:string, database_name:string}|null
+     * @return array{id:int, tenant_key:string, label:string}|null
      */
     public static function current(): ?array
     {
-        if (self::$current !== null) {
-            return self::$current;
-        }
         $t = $_SESSION[self::SESSION_KEY] ?? null;
-        if (!\is_array($t) || !isset($t['database_name'])) {
-            return null;
-        }
-        // Re-validate on every request. A session is client-held state; the database
-        // name must look like a database name before it is used to build a DSN.
-        if (!self::isValidDatabaseName((string) $t['database_name'])) {
-            self::clear();
-            return null;
-        }
-        return self::$current = $t;
+        return (\is_array($t) && isset($t['id'])) ? $t : null;
     }
 
-    /** The active tenant, or a hard failure. Used where a tenant is required. */
-    public static function require(): array
+    public static function id(): ?int
     {
         $t = self::current();
-        if ($t === null) {
-            throw new \RuntimeException(
-                'No tenant selected for this request. A tenant must be chosen at sign-in, '
-                . 'or entered from the superadmin console, before business data can be read.'
-            );
-        }
-        return $t;
+        return $t === null ? null : (int) $t['id'];
     }
 
     public static function key(): ?string
@@ -79,58 +52,51 @@ class Tenant
         return self::current()['label'] ?? null;
     }
 
-    public static function database(): string
-    {
-        return self::require()['database_name'];
-    }
-
-    public static function id(): ?int
-    {
-        $t = self::current();
-        return $t === null ? null : (int) $t['id'];
-    }
-
     /**
-     * Select a tenant for this session. Expects a row already read from the control
-     * database — never raw user input.
+     * Select a business for this session. Expects a row already read from the
+     * `tenants` table — never raw user input.
      */
-    public static function select(array $tenantRow): void
+    public static function select(array $row): void
     {
-        $db = (string) ($tenantRow['database_name'] ?? '');
-        if (!self::isValidDatabaseName($db)) {
-            throw new \RuntimeException("Refusing to select tenant with an invalid database name.");
-        }
         $_SESSION[self::SESSION_KEY] = [
-            'id'            => (int) $tenantRow['id'],
-            'tenant_key'    => (string) $tenantRow['tenant_key'],
-            'label'         => (string) $tenantRow['label'],
-            'database_name' => $db,
+            'id'         => (int) $row['id'],
+            'tenant_key' => (string) $row['tenant_key'],
+            'label'      => (string) $row['label'],
         ];
-        self::$current = null;   // force a re-read
-        // Keep the bootstrap guard's stamp in step, so a legitimate selection is not
-        // mistaken for tampering. Any change to _tenant that does NOT come through
-        // here or clear() will fail the stamp check on the next request.
-        $_SESSION['_tenant_stamp'] = (string) $tenantRow['tenant_key'];
-        Db::resetTenantConnection();
+        // Keep the bootstrap guard's stamp in step, so a legitimate selection is
+        // not mistaken for tampering.
+        $_SESSION['_tenant_stamp'] = (string) $row['tenant_key'];
+        Db::rebindTenant();
     }
 
-    /** Leave the current tenant — a superadmin returning to the console. */
+    /** Leave the current business — a superadmin returning to the console. */
     public static function clear(): void
     {
         unset($_SESSION[self::SESSION_KEY]);
         $_SESSION['_tenant_stamp'] = null;
-        self::$current = null;
-        Db::resetTenantConnection();
+        Db::rebindTenant();
     }
 
     /**
-     * Database names are `[a-z0-9_]` by convention here (MilesWeb prefixes them,
-     * e.g. `srasinge1_gp`). Anything else is rejected rather than passed to a DSN.
+     * Run a callback with a different tenant bound, then restore.
+     *
+     * Used when seeding a newly created business: the superadmin is not "in" that
+     * tenant, but its opening rows have to be written as that tenant. Restores the
+     * previous selection even if the callback throws, so a failed seed cannot
+     * leave the session pointing somewhere unexpected.
      */
-    public static function isValidDatabaseName(string $name): bool
+    public static function runAs(array $row, callable $fn): mixed
     {
-        return $name !== ''
-            && \strlen($name) <= 64
-            && \preg_match('/^[A-Za-z0-9_]+$/', $name) === 1;
+        $previous = self::current();
+        self::select($row);
+        try {
+            return $fn();
+        } finally {
+            if ($previous === null) {
+                self::clear();
+            } else {
+                self::select($previous);
+            }
+        }
     }
 }

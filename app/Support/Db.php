@@ -5,107 +5,110 @@ namespace App\Support;
 
 use PDO;
 
+/**
+ * One database, many tenants.
+ *
+ * Every business table is a VIEW over `<table>__data` filtered by `app_tenant()`,
+ * which reads the `@app_tenant` session variable. So the tenant is bound to the
+ * CONNECTION, and all 869 of the app's queries are filtered without any of them
+ * mentioning a tenant. Isolation is enforced by the database rather than by a
+ * WHERE clause somebody has to remember to write.
+ *
+ * It fails closed: with no tenant bound, `@app_tenant` is NULL, the views match
+ * nothing, and the insert triggers refuse to write. A missing tenant shows up as
+ * an empty screen or a rejected save, never as another business's data.
+ *
+ * The control tables (`tenants`, `superadmins`, `superadmin_activity`) are real
+ * tables, not views, so they stay readable whatever the bound tenant is — which
+ * is what lets the login page list businesses before anyone has signed in.
+ */
 class Db
 {
-    /** Connection to the CURRENT TENANT's database — all business data. */
     private static ?PDO $pdo = null;
 
-    /** Connection to the CONTROL database — tenants and superadmins only. */
-    private static ?PDO $control = null;
+    /**
+     * Which tenant the live connection is currently bound to.
+     * `false` means "not yet bound"; null is a real value meaning "no tenant".
+     */
+    private static int|null|false $bound = false;
+
+    private static ?bool $multiTenant = null;
 
     /**
-     * The current tenant's database connection.
+     * The database connection, with `@app_tenant` bound to the selected tenant.
      *
-     * Every business query in the app goes through here, and none of them name a
-     * schema, so they all follow whichever tenant database is connected. That is
-     * what keeps tenants isolated: it is enforced by the connection, not by a
-     * WHERE clause that somebody has to remember.
-     *
-     * Throws when no tenant is selected — a deliberate hard failure, so a bug can
-     * never silently read the wrong business's books.
+     * Re-binds whenever the selection changes — a superadmin entering a tenant
+     * switches tenant mid-request, and the same connection has to follow.
      */
     public static function pdo(): PDO
     {
-        if (self::$pdo instanceof PDO) {
-            return self::$pdo;
+        if (!self::$pdo instanceof PDO) {
+            self::$pdo   = self::connect();
+            self::$bound = false;
         }
 
-        if (Tenant::check()) {
-            return self::$pdo = self::connect(Tenant::database());
+        $want = self::multiTenant() ? Tenant::id() : null;
+        if (self::$bound !== $want) {
+            // Integer-cast, never interpolated from user input.
+            self::$pdo->exec('SET @app_tenant = ' . ($want === null ? 'NULL' : (int) $want));
+            self::$bound = $want;
         }
-
-        // No tenant selected. What that means depends on whether multi-tenancy is set up:
-        //
-        //  - Control plane configured -> this is a bug or a tampered session. Fail hard
-        //    rather than guess, so a request can never silently read the wrong business.
-        //  - No control plane -> this is still a single-tenant install (including the
-        //    window between uploading this code and creating the control database), so
-        //    fall back to DB_NAME and behave exactly as before.
-        if (self::controlAvailable()) {
-            throw new \RuntimeException(
-                'No tenant selected for this request. A tenant must be chosen at sign-in, '
-                . 'or entered from the superadmin console, before business data can be read.'
-            );
-        }
-
-        return self::$pdo = self::connect((string) env('DB_NAME', 'gpv2_ims'));
+        return self::$pdo;
     }
 
     /**
-     * The control database: which tenants exist and who the superadmins are.
-     * Holds no business data.
-     *
-     * Falls back to DB_NAME when CONTROL_DB_NAME is unset, which keeps a
-     * pre-multi-tenancy install working until the control database is created.
+     * The control tables live in this same database and are not views, so this is
+     * the same connection. Kept as a separate name so call sites read clearly and
+     * so a future move to separate databases only has to change this method.
      */
     public static function control(): PDO
     {
-        if (self::$control instanceof PDO) {
-            return self::$control;
-        }
-        $name = (string) env('CONTROL_DB_NAME', (string) env('DB_NAME', 'gpv2_ims'));
-        return self::$control = self::connect($name);
+        return self::pdo();
     }
-
-    /** Resolved once per request — PHP is shared-nothing, so this never goes stale. */
-    private static ?bool $controlAvailable = null;
 
     /**
-     * True when a control database is configured and reachable.
+     * Has the multi-tenancy conversion been applied to this database?
      *
-     * Cached because a single-tenant install answers "no" by running a query that
-     * fails (there is no `tenants` table), and repeating that on every call would
-     * both cost time and fill the server error log for no reason.
+     * Detected rather than configured, so the same code runs before and after the
+     * conversion: no `tenants` table means this is still a single-business
+     * install, the tenant is never bound, and the plain tables behave as always.
      */
-    public static function controlAvailable(): bool
+    public static function multiTenant(): bool
     {
-        if (self::$controlAvailable !== null) {
-            return self::$controlAvailable;
+        if (self::$multiTenant !== null) {
+            return self::$multiTenant;
         }
         try {
-            self::control()->query('SELECT 1 FROM tenants LIMIT 1');
-            return self::$controlAvailable = true;
+            self::rawPdo()->query('SELECT 1 FROM tenants LIMIT 1');
+            return self::$multiTenant = true;
         } catch (\Throwable) {
-            return self::$controlAvailable = false;
+            return self::$multiTenant = false;
         }
     }
 
-    /** Drop the tenant connection so the next query reconnects to a newly selected tenant. */
-    public static function resetTenantConnection(): void
+    /** Force the next query to re-bind — called when the selected tenant changes. */
+    public static function rebindTenant(): void
     {
-        self::$pdo = null;
+        self::$bound = false;
     }
 
-    private static function connect(string $database): PDO
+    /** The connection without touching tenant binding (used by multiTenant()). */
+    private static function rawPdo(): PDO
     {
-        if (!Tenant::isValidDatabaseName($database)) {
-            throw new \RuntimeException('Refusing to connect: invalid database name.');
+        if (!self::$pdo instanceof PDO) {
+            self::$pdo   = self::connect();
+            self::$bound = false;
         }
+        return self::$pdo;
+    }
+
+    private static function connect(): PDO
+    {
         $dsn = sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
             env('DB_HOST', 'localhost'),
             env('DB_PORT', '3306'),
-            $database
+            env('DB_NAME', 'gpv2_ims')
         );
         return new PDO(
             $dsn,
@@ -126,7 +129,7 @@ class Db
      * Run $fn inside a DB transaction. Re-entrant: nested calls execute the closure
      * inside the current transaction without issuing a second BEGIN (PDO/MySQL native
      * transactions don't nest). If any nested closure throws, the WHOLE outer transaction
-     * is rolled back — we mark a "rollback only" flag so the outer level finalizes
+     * is rolled back â€” we mark a "rollback only" flag so the outer level finalizes
      * with rollBack() instead of commit().
      */
     public static function transaction(callable $fn): mixed

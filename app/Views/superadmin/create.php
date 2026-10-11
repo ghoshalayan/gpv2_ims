@@ -6,13 +6,12 @@
 </div>
 
 <div class="alert alert-info">
-    <strong>Create the database first.</strong> This screen registers a database that already
-    exists; it does not create one. In the hosting panel: create the database, grant the same
-    MySQL user rights on it, then apply the IMS schema (all migrations) to it. Only then add
-    it here.
+    <strong>Nothing to set up first.</strong> All businesses share one database, so creating
+    one here is immediate — it writes the business record plus everything it needs to be
+    usable: its business profile, settings, a fallback brand, and an administrator account.
     <div class="small mt-2">
-        The application deliberately cannot create databases. An application that can create
-        databases is one that can be made to create databases.
+        Its data is kept completely separate from every other business. The same customer,
+        product or supplier may exist in several businesses as unrelated records.
     </div>
 </div>
 
@@ -34,15 +33,6 @@
                            class="form-control font-monospace" value="<?= e(old('tenant_key')) ?>"
                            placeholder="acme" pattern="[a-z0-9][a-z0-9_-]{1,39}">
                     <div class="form-text">Lowercase letters, digits, hyphen or underscore.</div>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="database_name">Database name <span class="text-danger">*</span></label>
-                    <input type="text" id="database_name" name="database_name" maxlength="64" required
-                           class="form-control font-monospace" value="<?= e(old('database_name')) ?>"
-                           placeholder="srasinge1_acme">
-                    <div class="form-text">
-                        Exactly as it appears in the hosting panel. Checked for existence before saving.
-                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="remarks">Remarks</label>

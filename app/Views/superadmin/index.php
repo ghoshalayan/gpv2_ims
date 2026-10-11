@@ -3,6 +3,21 @@
 /** @var array $activity */
 /** @var array|null $admin */
 ?>
+<?php if (!empty($_SESSION['_new_tenant'])): ?>
+    <?php $nt = $_SESSION['_new_tenant']; unset($_SESSION['_new_tenant']); ?>
+    <div class="alert alert-success">
+        <h5 class="mb-2"><i class="bi bi-check-circle"></i> <?= e($nt['label']) ?> is ready</h5>
+        <p class="mb-2">Sign-in details for this business — <strong>shown once</strong>, so write
+           them down now. The password is not stored in readable form anywhere.</p>
+        <table class="table table-sm w-auto mb-2">
+            <tr><th class="pe-3">Business</th><td><?= e($nt['label']) ?></td></tr>
+            <tr><th class="pe-3">Username</th><td><code><?= e($nt['username']) ?></code></td></tr>
+            <tr><th class="pe-3">Password</th><td><code><?= e($nt['password']) ?></code></td></tr>
+        </table>
+        <div class="small text-muted">Have them change it at first sign-in.</div>
+    </div>
+<?php endif; ?>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h1 class="h4 mb-0">Tenants</h1>
@@ -25,15 +40,12 @@
                     <tr>
                         <th>Business</th>
                         <th>Key</th>
-                        <th>Database</th>
-                        <th>Schema</th>
                         <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($tenants as $t): ?>
-                        <?php $i = $t['inspect']; ?>
                         <tr>
                             <td>
                                 <strong><?= e($t['label']) ?></strong>
@@ -42,24 +54,6 @@
                                 <?php endif; ?>
                             </td>
                             <td><code><?= e($t['tenant_key']) ?></code></td>
-                            <td class="small font-monospace"><?= e($t['database_name']) ?></td>
-                            <td class="small">
-                                <?php if ($i['ready']): ?>
-                                    <span class="text-success">
-                                        <i class="bi bi-check-circle"></i>
-                                        <?= (int) $i['tables'] ?> tables · <?= (int) $i['migrations'] ?> migrations
-                                    </span>
-                                <?php elseif ($i['exists']): ?>
-                                    <span class="text-warning">
-                                        <i class="bi bi-exclamation-triangle"></i>
-                                        <?= (int) $i['tables'] ?> tables, no migrations recorded
-                                    </span>
-                                <?php else: ?>
-                                    <span class="text-danger">
-                                        <i class="bi bi-x-circle"></i> database not reachable
-                                    </span>
-                                <?php endif; ?>
-                            </td>
                             <td>
                                 <?php if ($t['status'] === 'active'): ?>
                                     <span class="badge bg-success">active</span>
@@ -68,7 +62,7 @@
                                 <?php endif; ?>
                             </td>
                             <td class="text-end text-nowrap">
-                                <?php if ($t['status'] === 'active' && $i['ready']): ?>
+                                <?php if ($t['status'] === 'active'): ?>
                                     <form method="post" action="<?= url('/superadmin/tenants/' . (int) $t['id'] . '/enter') ?>"
                                           class="d-inline"
                                           onsubmit="return confirm('Enter <?= e($t['label']) ?>? This opens that business\'s live books, and is recorded.');">
@@ -79,7 +73,7 @@
                                     </form>
                                 <?php else: ?>
                                     <button class="btn btn-sm btn-outline-secondary" disabled
-                                            title="<?= $i['ready'] ? 'Tenant is suspended' : 'Database is not provisioned' ?>">
+                                            title="Business is suspended">
                                         Enter
                                     </button>
                                 <?php endif; ?>

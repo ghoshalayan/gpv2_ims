@@ -60,25 +60,13 @@ class TenantRepository
         return (bool) $st->fetchColumn();
     }
 
-    public function databaseNameExists(string $db, ?int $excludeId = null): bool
-    {
-        $sql = 'SELECT 1 FROM tenants WHERE database_name = ?';
-        $p = [$db];
-        if ($excludeId !== null) { $sql .= ' AND id <> ?'; $p[] = $excludeId; }
-        $st = Db::control()->prepare($sql . ' LIMIT 1');
-        $st->execute($p);
-        return (bool) $st->fetchColumn();
-    }
-
     public function insertTenant(array $d): int
     {
         $st = Db::control()->prepare(
-            'INSERT INTO tenants (tenant_key, label, database_name, status, remarks)
-             VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO tenants (tenant_key, label, status, remarks) VALUES (?, ?, ?, ?)'
         );
         $st->execute([
-            $d['tenant_key'], $d['label'], $d['database_name'],
-            $d['status'] ?? 'active', $d['remarks'] ?? null,
+            $d['tenant_key'], $d['label'], $d['status'] ?? 'active', $d['remarks'] ?? null,
         ]);
         return (int) Db::control()->lastInsertId();
     }
@@ -87,43 +75,6 @@ class TenantRepository
     {
         $st = Db::control()->prepare('UPDATE tenants SET status = ? WHERE id = ?');
         $st->execute([$status, $id]);
-    }
-
-    /**
-     * Does this tenant's database actually exist and carry the IMS schema?
-     * Surfaced in the console so a half-provisioned tenant is visible rather than
-     * only failing when somebody tries to sign in to it.
-     *
-     * @return array{exists:bool, tables:int, migrations:int|null, ready:bool}
-     */
-    public function inspectTenantDatabase(string $databaseName): array
-    {
-        $out = ['exists' => false, 'tables' => 0, 'migrations' => null, 'ready' => false];
-        if (!Tenant::isValidDatabaseName($databaseName)) {
-            return $out;
-        }
-        try {
-            $st = Db::control()->prepare(
-                'SELECT COUNT(*) FROM information_schema.tables
-                 WHERE table_schema = ? AND table_type = "BASE TABLE"'
-            );
-            $st->execute([$databaseName]);
-            $out['tables'] = (int) $st->fetchColumn();
-            $out['exists'] = $out['tables'] > 0;
-
-            if ($out['exists']) {
-                // information_schema cannot read row counts reliably, so query the
-                // tenant's own migrations table through a scoped connection.
-                $st2 = Db::control()->query(
-                    'SELECT COUNT(*) FROM `' . $databaseName . '`.`migrations`'
-                );
-                $out['migrations'] = (int) $st2->fetchColumn();
-            }
-        } catch (\Throwable) {
-            // A missing migrations table just means not-ready; not an error to raise.
-        }
-        $out['ready'] = $out['exists'] && ($out['migrations'] ?? 0) > 0;
-        return $out;
     }
 
     // ------------------------------------------------------------ superadmins

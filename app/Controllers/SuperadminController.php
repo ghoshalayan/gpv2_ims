@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\TenantRepository;
+use App\Services\TenantProvisionService;
 use App\Support\Db;
 use App\Support\Flash;
 use App\Support\Auth;
@@ -24,16 +25,13 @@ class SuperadminController
 {
     public function __construct(
         private TenantRepository $repo = new TenantRepository(),
+        private TenantProvisionService $provision = new TenantProvisionService(),
     ) {}
 
     /** The console: every tenant, with whether its database is actually provisioned. */
     public function index(): string
     {
         $tenants = $this->repo->allTenants();
-        foreach ($tenants as &$t) {
-            $t['inspect'] = $this->repo->inspectTenantDatabase((string) $t['database_name']);
-        }
-        unset($t);
 
         return view('superadmin/index', [
             'title'    => 'Tenants',
@@ -57,56 +55,53 @@ class SuperadminController
      * not have, and should not have — an application that can create databases is
      * an application that can be made to create databases.
      */
+    /**
+     * Create a business. All tenants share one database, so there is nothing to
+     * provision at the hosting level — the service writes the tenant row and the
+     * opening records (profile, settings, fallback brand, administrator) in one
+     * transaction.
+     */
     public function store(): string
     {
-        $key    = \strtolower(\trim((string) ($_POST['tenant_key'] ?? '')));
-        $label  = \trim((string) ($_POST['label'] ?? ''));
-        $dbName = \trim((string) ($_POST['database_name'] ?? ''));
-        $remarks= \trim((string) ($_POST['remarks'] ?? '')) ?: null;
+        $key     = \strtolower(	rim((string) ($_POST['tenant_key'] ?? '')));
+        $label   = 	rim((string) ($_POST['label'] ?? ''));
+        $remarks = 	rim((string) ($_POST['remarks'] ?? '')) ?: null;
 
         $errors = [];
         if (!\preg_match('/^[a-z0-9][a-z0-9_-]{1,39}$/', $key)) {
             $errors[] = 'Key must be 2-40 characters: lowercase letters, digits, hyphen or underscore.';
         }
-        if ($label === '')                        { $errors[] = 'Name is required.'; }
-        if (!Tenant::isValidDatabaseName($dbName)) { $errors[] = 'Database name may contain only letters, digits and underscore.'; }
-        if ($errors === [] && $this->repo->tenantKeyExists($key))        { $errors[] = "Key '{$key}' is already in use."; }
-        if ($errors === [] && $this->repo->databaseNameExists($dbName))  { $errors[] = "Database '{$dbName}' is already registered to another tenant."; }
-
-        // Refuse to register a database that is not actually there — otherwise the
-        // failure surfaces later as a confusing sign-in error.
-        if ($errors === []) {
-            $i = $this->repo->inspectTenantDatabase($dbName);
-            if (!$i['exists']) {
-                $errors[] = "Database '{$dbName}' does not exist or is not reachable. "
-                          . 'Create it in the hosting panel and apply the migrations first.';
-            } elseif (!$i['ready']) {
-                $errors[] = "Database '{$dbName}' exists but has no migrations applied. "
-                          . 'Apply the IMS schema to it before registering it.';
-            }
+        if ($label === '') { $errors[] = 'Business name is required.'; }
+        if ($errors === [] && $this->repo->tenantKeyExists($key)) {
+            $errors[] = "Key '{$key}' is already in use.";
         }
-
         if ($errors !== []) {
             flash_old($_POST);
             Flash::error($errors[0]);
             return redirect('/superadmin/tenants/create');
         }
 
-        $id = $this->repo->insertTenant([
-            'tenant_key'    => $key,
-            'label'         => $label,
-            'database_name' => $dbName,
-            'remarks'       => $remarks,
-        ]);
+        try {
+            $r = $this->provision->create($key, $label, $remarks);
+        } catch (\Throwable $e) {
+            flash_old($_POST);
+            Flash::error('Could not create the business: ' . $e->getMessage());
+            return redirect('/superadmin/tenants/create');
+        }
+
         $this->repo->logSuperadminAction('create_tenant', [
             'superadmin_id' => Superadmin::id(),
             'username'      => Superadmin::username(),
-            'tenant_id'     => $id,
+            'tenant_id'     => $r['tenant_id'],
             'tenant_key'    => $key,
-            'notes'         => "database={$dbName}",
         ]);
 
-        Flash::success("Tenant '{$label}' registered.");
+        // Shown once. The password is not stored in clear anywhere, so if it is
+        // lost here it has to be reset rather than looked up.
+        $_SESSION['_new_tenant'] = [
+            'label' => $label, 'username' => $r['username'], 'password' => $r['password'],
+        ];
+        Flash::success("'{$label}' created.");
         return redirect('/superadmin');
     }
 
@@ -148,11 +143,6 @@ class SuperadminController
             return redirect('/superadmin');
         }
 
-        $i = $this->repo->inspectTenantDatabase((string) $t['database_name']);
-        if (!$i['ready']) {
-            Flash::error("'{$t['label']}' is not provisioned yet — its database has no schema.");
-            return redirect('/superadmin');
-        }
 
         Tenant::select($t);
         $this->repo->logSuperadminAction('enter_tenant', [
