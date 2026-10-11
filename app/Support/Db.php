@@ -67,14 +67,26 @@ class Db
         return self::$control = self::connect($name);
     }
 
-    /** True when a control database is configured and reachable. */
+    /** Resolved once per request — PHP is shared-nothing, so this never goes stale. */
+    private static ?bool $controlAvailable = null;
+
+    /**
+     * True when a control database is configured and reachable.
+     *
+     * Cached because a single-tenant install answers "no" by running a query that
+     * fails (there is no `tenants` table), and repeating that on every call would
+     * both cost time and fill the server error log for no reason.
+     */
     public static function controlAvailable(): bool
     {
+        if (self::$controlAvailable !== null) {
+            return self::$controlAvailable;
+        }
         try {
             self::control()->query('SELECT 1 FROM tenants LIMIT 1');
-            return true;
+            return self::$controlAvailable = true;
         } catch (\Throwable) {
-            return false;
+            return self::$controlAvailable = false;
         }
     }
 
