@@ -10,21 +10,33 @@
     $fmt = fn($n) => number_format((float) $n, 2);
 ?>
 <div class="sheet sheet-thermal">
+    <?php
+        // Details switched off in System Settings come back blank and are
+        // skipped below, exactly like a field that was never filled in.
+        $business = \App\Support\BillHeader::apply($business, $invoice['bill_type'] ?? null);
+        $bizName  = (string) ($business['display_name'] ?? env('APP_NAME'));
+        $small    = 'text-align: center; font-size: 10px;';
+    ?>
     <div style="text-align: center; font-weight: bold; font-size: 14px;">
-        <?= e($business['display_name'] ?? env('APP_NAME')) ?>
+        <?= e($bizName) ?>
     </div>
-    <?php if (!empty($business['address'])): ?>
-        <div style="text-align: center; font-size: 10px; white-space: pre-line;">
-            <?= e($business['address']) ?>
-        </div>
+    <?php if (!empty($business['legal_name'])): ?>
+        <div style="<?= $small ?>"><?= e($business['legal_name']) ?></div>
     <?php endif; ?>
-    <?php if (!empty($business['phone']) || !empty($business['gstin'])): ?>
-        <div style="text-align: center; font-size: 10px;">
-            <?php if (!empty($business['phone'])): ?>Ph: <?= e($business['phone']) ?><?php endif; ?>
-        </div>
-        <?php if (!empty($business['gstin'])): ?>
-            <div style="text-align: center; font-size: 10px;">GSTIN: <?= e($business['gstin']) ?></div>
-        <?php endif; ?>
+    <?php if (!empty($business['address'])): ?>
+        <div style="<?= $small ?> white-space: pre-line;"><?= e($business['address']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($business['state'])): ?>
+        <div style="<?= $small ?>"><?= e($business['state']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($business['phone'])): ?>
+        <div style="<?= $small ?>">Ph: <?= e($business['phone']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($business['email'])): ?>
+        <div style="<?= $small ?>"><?= e($business['email']) ?></div>
+    <?php endif; ?>
+    <?php if (!empty($business['gstin'])): ?>
+        <div style="<?= $small ?>">GSTIN: <?= e($business['gstin']) ?></div>
     <?php endif; ?>
 
     <div style="border-top: 1px dashed #000; margin: 2mm 0;"></div>
@@ -35,6 +47,9 @@
     <div>Inv #: <?= e($invoice['invoice_number']) ?></div>
     <div>Date : <?= e($invoice['invoice_date']) ?></div>
     <div>Cust : <?= e($invoice['customer_name']) ?></div>
+    <?php if (!empty($invoice['customer_address'])): ?>
+        <div style="padding-left: 7ch; white-space: pre-line; font-size: 10px;"><?= e($invoice['customer_address']) ?></div>
+    <?php endif; ?>
     <?php if (!empty($invoice['customer_phone'])): ?>
         <div>Phone: <?= e($invoice['customer_phone']) ?></div>
     <?php endif; ?>
@@ -122,27 +137,28 @@
         </tr>
         <?php if ((float) $invoice['paid_amount'] > 0): ?>
             <tr><td>Paid</td><td style="text-align:right;">₹<?= $fmt($invoice['paid_amount']) ?></td></tr>
-            <?php if ((float) $invoice['due_amount'] > 0): ?>
-                <tr style="font-weight: bold;">
-                    <td>Due (this inv)</td><td style="text-align:right;">₹<?= $fmt($invoice['due_amount']) ?></td>
-                </tr>
-            <?php endif; ?>
-        <?php endif; ?>
-        <?php
-            $prevDue  = (float) ($previousDue ?? 0);
-            $thisDue  = (float) $invoice['due_amount'];
-            $totalOut = $prevDue + $thisDue;
-        ?>
-        <?php if ($prevDue > 0): ?>
-            <tr style="font-weight: bold;">
-                <td>Prev. Due</td><td style="text-align:right;">₹<?= $fmt($prevDue) ?></td>
-            </tr>
-            <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 13px;">
-                <td style="padding-top: 1mm;">TOTAL PAYABLE</td>
-                <td style="padding-top: 1mm; text-align:right;">₹<?= $fmt($totalOut) ?></td>
-            </tr>
         <?php endif; ?>
     </table>
+
+    <?php
+        // Latest = this bill. Older = every other unpaid bill plus opening
+        // dues carried in from before the system, the same total the Due
+        // List shows. Printed only when something is actually owed.
+        $latestDue = (float) $invoice['due_amount'];
+        $olderDue  = (float) ($previousDue ?? 0);
+        $totalDue  = $latestDue + $olderDue;
+    ?>
+    <?php if ($totalDue > 0.004): ?>
+        <div style="border-top: 1px dashed #000; margin: 2mm 0;"></div>
+        <table style="width: 100%; font-size: 11px;">
+            <tr><td>Latest Due</td><td style="text-align:right;">₹<?= $fmt($latestDue) ?></td></tr>
+            <tr><td>Older Due</td><td style="text-align:right;">₹<?= $fmt($olderDue) ?></td></tr>
+            <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 13px;">
+                <td style="padding-top: 1mm;">TOTAL DUE</td>
+                <td style="padding-top: 1mm; text-align:right;">₹<?= $fmt($totalDue) ?></td>
+            </tr>
+        </table>
+    <?php endif; ?>
 
     <div style="border-top: 1px dashed #000; margin: 2mm 0;"></div>
 

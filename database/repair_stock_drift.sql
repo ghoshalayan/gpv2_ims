@@ -1,4 +1,11 @@
 -- =====================================================================
+--  OBSOLETE SINCE THE MULTI-TENANCY CONVERSION - DO NOT RUN.
+--  `products` and `stock_movements` are now per-business views; with no
+--  business bound in phpMyAdmin they are empty, so this script silently
+--  does nothing. Use database/control/repair_stock_drift_mt.sql instead.
+-- =====================================================================
+
+-- =====================================================================
 --  REPAIR: stock ledger drift on products created with opening stock
 -- =====================================================================
 --  Fixes the Integrity Check finding

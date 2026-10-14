@@ -135,6 +135,29 @@
             </div>
 
             <div class="card shadow-sm mt-3">
+                <div class="card-header bg-white"><strong>Shown on Bills</strong></div>
+                <div class="card-body">
+                    <div class="form-text mb-2">
+                        Business details printed under the business name on thermal and A4 bills.
+                        A detail that is switched on but left empty above is simply not printed.
+                    </div>
+                    <?php foreach (\App\Support\BillHeader::FIELDS as $key => [$field, $label]): ?>
+                        <?php $on = (string) old($key, $settings[$key] ?? '1') === '1'; ?>
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" id="<?= e($key) ?>"
+                                   name="<?= e($key) ?>" value="1" <?= $on ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="<?= e($key) ?>"><?= e($label) ?></label>
+                        </div>
+                    <?php endforeach; ?>
+                    <div class="form-text mt-2">
+                        <i class="bi bi-info-circle"></i>
+                        GSTIN always prints on a <strong>Tax Invoice</strong>, whatever this switch says:
+                        a tax invoice without the seller's GSTIN is not valid under GST.
+                        The switch applies to Bills of Supply.
+                    </div>
+                </div>
+            </div>
+            <div class="card shadow-sm mt-3">
                 <div class="card-header bg-white"><strong>Reference</strong></div>
                 <div class="card-body small text-muted">
                     Last updated: <?= e($profile['updated_at'] ?? '-') ?><br>

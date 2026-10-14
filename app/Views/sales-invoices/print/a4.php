@@ -1,4 +1,5 @@
 <?php /** @var array $invoice */ /** @var array $lines */ /** @var array $business */ /** @var array $lineComponents */ /** @var array $extras */ ?>
+<?php $business = \App\Support\BillHeader::apply($business, $invoice['bill_type'] ?? null); ?>
 <?php $fd = (float) ($invoice['final_discount_amount'] ?? 0); ?>
 <?php $isTaxInvoice = $invoice['bill_type'] === 'tax_invoice'; ?>
 <?php $isInvoiceLevelTax = $invoice['bill_format'] === 'discount_then_tax'; ?>

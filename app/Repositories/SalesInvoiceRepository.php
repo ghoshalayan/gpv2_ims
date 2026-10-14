@@ -230,17 +230,30 @@ class SalesInvoiceRepository
      * Customer's outstanding due from all OTHER finalized invoices (excludes the one we're printing).
      * Used on printed bills to show "Previous Due" alongside the current invoice balance.
      */
+    /**
+     * Everything else the customer owes, besides the invoice being printed.
+     *
+     * Includes legacy obligations - opening dues carried in from before the
+     * system - so the printed total matches the Due List and the passbook.
+     * Leaving them out understated what a customer owed on every bill.
+     * Advances are not netted off, for the same reason the Due List does not.
+     */
     public function previousDueForCustomer(int $customerId, int $excludeInvoiceId): float
     {
         $stmt = Db::pdo()->prepare(
-            "SELECT COALESCE(SUM(due_amount), 0)
-             FROM sales_invoices
-             WHERE customer_id = ?
-               AND status = 'finalized'
-               AND payment_status IN ('unpaid', 'partial')
-               AND id <> ?"
+            "SELECT
+               (SELECT COALESCE(SUM(due_amount), 0)
+                  FROM sales_invoices
+                 WHERE customer_id = ?
+                   AND status = 'finalized'
+                   AND payment_status IN ('unpaid', 'partial')
+                   AND id <> ?)
+             + (SELECT COALESCE(SUM(due_amount), 0)
+                  FROM legacy_obligations
+                 WHERE customer_id = ?
+                   AND due_amount > 0)"
         );
-        $stmt->execute([$customerId, $excludeInvoiceId]);
+        $stmt->execute([$customerId, $excludeInvoiceId, $customerId]);
         return (float) $stmt->fetchColumn();
     }
 

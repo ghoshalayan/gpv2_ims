@@ -10,6 +10,7 @@ use App\Support\Auth;
 use App\Support\Db;
 use App\Support\Flash;
 use App\Support\IndianStates;
+use App\Support\BillHeader;
 use App\Support\Settings;
 use App\Support\Validator;
 
@@ -104,13 +105,22 @@ class SettingsController
         // CR-1b master switch. Off means purchase entry suggests no slab rate at all.
         $enableSlabRates     = !empty($_POST['enable_brand_slab_rates']) ? '1' : '0';
 
-        Db::transaction(function () use ($profile, $commissionMode, $enableRoundOff, $lowStockWidget, $enableSlabRates): void {
+        // Which business details print under the name on bills.
+        $billHeader = [];
+        foreach (array_keys(BillHeader::FIELDS) as $key) {
+            $billHeader[$key] = !empty($_POST[$key]) ? '1' : '0';
+        }
+
+        Db::transaction(function () use ($profile, $commissionMode, $enableRoundOff, $lowStockWidget, $enableSlabRates, $billHeader): void {
             $userId = (int) Auth::id();
             $this->bp->update($profile, $userId);
             Settings::set('commission_accrues_on', $commissionMode, $userId);
             Settings::set('enable_round_off', $enableRoundOff, $userId);
             Settings::set('low_stock_dashboard_widget', $lowStockWidget, $userId);
             Settings::set('enable_brand_slab_rates', $enableSlabRates, $userId);
+            foreach ($billHeader as $key => $value) {
+                Settings::set($key, $value, $userId);
+            }
         });
 
         Flash::success('System settings saved.');
