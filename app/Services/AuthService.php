@@ -34,4 +34,45 @@ class AuthService
         unset($user['password_hash']);
         return $user;
     }
+
+    /**
+     * Validate credentials WITHOUT knowing the business in advance.
+     *
+     * The username decides which business the sign-in belongs to, so the lookup
+     * spans every tenant. The password is verified BEFORE any tenant is bound to
+     * the connection: a wrong password must not cause the application to start
+     * operating inside someone else's books, however briefly.
+     *
+     * Returns the user row with its `tenant_id`; the caller binds the tenant.
+     */
+    public function attemptAcrossTenants(string $username, string $password): ?array
+    {
+        if ($username === '' || $password === '') {
+            return null;
+        }
+
+        $user = $this->users->findLoginAcrossTenants($username);
+        if ($user === null) {
+            return null;
+        }
+        if ($user['status'] !== 'active') {
+            return null;
+        }
+        if (!\password_verify($password, (string) $user['password_hash'])) {
+            return null;
+        }
+
+        unset($user['password_hash']);
+        return $user;
+    }
+
+    /**
+     * Stamp the sign-in time. Separate from attemptAcrossTenants() because the
+     * row lives in the tenant's own data, so it can only be written once the
+     * caller has bound that tenant to the connection.
+     */
+    public function touchLogin(int $userId): void
+    {
+        $this->users->touchLastLogin($userId);
+    }
 }

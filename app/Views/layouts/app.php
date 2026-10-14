@@ -85,7 +85,7 @@
 
 <nav class="navbar navbar-dark bg-dark bg-gradient fixed-top">
     <div class="container-fluid">
-        <?php if (\App\Support\Auth::check()): ?>
+        <?php if (\App\Support\Auth::signedIn()): ?>
             <button class="navbar-toggler d-md-none border-0" type="button"
                     data-bs-toggle="offcanvas" data-bs-target="#sidebar">
                 <span class="navbar-toggler-icon"></span>
@@ -98,7 +98,7 @@
             $__tenant = \App\Support\Tenant::current();
             $__isSa   = \App\Support\Superadmin::check();
         ?>
-        <?php if ($__tenant !== null && (\App\Support\Db::controlAvailable() || $__isSa)): ?>
+        <?php if ($__tenant !== null && (\App\Support\Db::multiTenant() || $__isSa)): ?>
             <span class="badge bg-light text-dark me-2" title="You are working inside this business">
                 <i class="bi bi-building"></i> <?= e($__tenant['label']) ?>
             </span>
@@ -120,8 +120,8 @@
             <span class="navbar-text text-white-50 small d-none d-lg-inline">
                 <?= e(env('APP_ENV')) ?> &middot; php <?= e(PHP_VERSION) ?>
             </span>
-            <?php if (\App\Support\Auth::check()): ?>
-                <?php $u = \App\Support\Auth::user(); ?>
+            <?php if (\App\Support\Auth::signedIn()): ?>
+                <?php $u = \App\Support\Auth::displayUser(); ?>
                 <a class="nav-link text-white p-0" href="<?= url('/help') ?>"
                    aria-label="How it works" title="How it works — quick tutorial">
                     <i class="bi bi-question-circle fs-5"></i>
@@ -157,7 +157,7 @@
                             <small class="text-muted">@<?= e($u['username']) ?> &middot; <?= e($u['role']) ?></small>
                         </span></li>
                         <li><hr class="dropdown-divider"></li>
-                        <?php if (\App\Support\Auth::is(\App\Support\Auth::ROLE_ADMIN)): ?>
+                        <?php if (\App\Support\Auth::actsAsAdmin()): ?>
                             <li><a class="dropdown-item" href="<?= url('/settings') ?>">
                                 <i class="bi bi-gear"></i> System Settings
                             </a></li>
@@ -176,7 +176,7 @@
     </div>
 </nav>
 
-<?php if (\App\Support\Auth::check()): ?>
+<?php if (\App\Support\Auth::signedIn()): ?>
     <div class="offcanvas-md offcanvas-start sidebar-wrap" id="sidebar">
         <div class="offcanvas-header d-md-none">
             <h6 class="offcanvas-title text-white mb-0"><?= e(env('APP_NAME')) ?></h6>
@@ -211,7 +211,7 @@
     </main>
 <?php endif; ?>
 
-<footer class="<?= \App\Support\Auth::check() ? 'main-content' : 'container' ?> py-3 text-center text-muted small">
+<footer class="<?= \App\Support\Auth::signedIn() ? 'main-content' : 'container' ?> py-3 text-center text-muted small">
     &copy; <?= date('Y') ?> <?= e(env('APP_NAME')) ?>
 </footer>
 

@@ -22,7 +22,7 @@
     <div>
         <h1 class="h4 mb-0">Tenants</h1>
         <div class="text-muted small">
-            Each business keeps its own database. Nothing is shared between them.
+            Each business keeps its own books. Nothing is shared between them.
         </div>
     </div>
     <a href="<?= url('/superadmin/tenants/create') ?>" class="btn btn-primary">

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\TenantRepository;
+use App\Repositories\UserRepository;
 use App\Support\Db;
 use App\Support\Tenant;
 
@@ -25,8 +26,18 @@ use App\Support\Tenant;
  */
 class TenantProvisionService
 {
-    /** Bootstrap administrator created for every new business. */
-    public const OWNER_USERNAME = 'owner';
+    /**
+     * Suggested username for a new business's administrator.
+     *
+     * Usernames are globally unique now that the sign-in resolves the business
+     * from the credentials, so every business cannot simply have an "owner".
+     * The business key is prefixed to keep the default distinct, and the
+     * superadmin can override it when creating the business.
+     */
+    public static function suggestedOwnerUsername(string $key): string
+    {
+        return $key . '_owner';
+    }
 
     public function __construct(
         private TenantRepository $repo = new TenantRepository(),
@@ -36,7 +47,8 @@ class TenantProvisionService
      * @return array{tenant_id:int, username:string, password:string}
      *         The generated password is shown once and never stored in clear.
      */
-    public function create(string $key, string $label, ?string $remarks, ?string $ownerPassword = null): array
+    public function create(string $key, string $label, ?string $remarks,
+                           ?string $ownerUsername = null, ?string $ownerPassword = null): array
     {
         if (!Db::multiTenant()) {
             throw new \RuntimeException(
@@ -49,7 +61,22 @@ class TenantProvisionService
             ? $ownerPassword
             : self::generatePassword();
 
-        return Db::transaction(function () use ($key, $label, $remarks, $password) {
+        $owner = $ownerUsername !== null && $ownerUsername !== ''
+            ? $ownerUsername
+            : self::suggestedOwnerUsername($key);
+
+        // Checked here as well as in the controller: this is the last point
+        // before the insert, and a duplicate would otherwise surface as a raw
+        // unique-key violation halfway through creating the business.
+        if ((new UserRepository())->usernameTakenAnywhere($owner)) {
+            throw new \RuntimeException(
+                "The username '{$owner}' is already in use by another business. "
+                . 'Usernames must be unique across all businesses, because the '
+                . 'sign-in uses them to decide which business you belong to.'
+            );
+        }
+
+        return Db::transaction(function () use ($key, $label, $remarks, $owner, $password) {
             $tenantId = $this->repo->insertTenant([
                 'tenant_key' => $key,
                 'label'      => $label,
@@ -58,11 +85,11 @@ class TenantProvisionService
 
             $row = ['id' => $tenantId, 'tenant_key' => $key, 'label' => $label];
 
-            Tenant::runAs($row, function () use ($label, $password) {
-                $this->seedBaseline($label, $password);
+            Tenant::runAs($row, function () use ($label, $owner, $password) {
+                $this->seedBaseline($label, $owner, $password);
             });
 
-            return ['tenant_id' => $tenantId, 'username' => self::OWNER_USERNAME, 'password' => $password];
+            return ['tenant_id' => $tenantId, 'username' => $owner, 'password' => $password];
         });
     }
 
@@ -73,7 +100,7 @@ class TenantProvisionService
      * there. What is per-tenant is the business profile, the fallback brand that
      * products fall back to, the settings toggles, and an administrator.
      */
-    private function seedBaseline(string $label, string $password): void
+    private function seedBaseline(string $label, string $owner, string $password): void
     {
         $pdo = Db::pdo();
 
@@ -112,7 +139,7 @@ class TenantProvisionService
         )->execute([
             $label . ' Owner',
             self::placeholderPhone(),
-            self::OWNER_USERNAME,
+            $owner,
             \password_hash($password, PASSWORD_BCRYPT),
             (int) $roleId,
             'active',

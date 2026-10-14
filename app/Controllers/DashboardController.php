@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Services\DashboardService;
 use App\Support\Auth;
 use App\Support\Permissions;
+use App\Support\Superadmin;
 
 class DashboardController
 {
@@ -40,9 +41,33 @@ class DashboardController
 
         return view('dashboard/index', [
             'title'      => 'Dashboard',
-            'user'       => Auth::user(),
+            'user'       => self::currentIdentity(),
             'components' => $visible,
         ]);
+    }
+
+    /**
+     * Who the greeting addresses.
+     *
+     * A superadmin working inside a business has no user row there, so
+     * Auth::user() is null and the view would dereference null. Fall back to the
+     * superadmin's own identity, labelled so it is obvious whose session this is.
+     */
+    private static function currentIdentity(): array
+    {
+        $u = Auth::user();
+        if ($u !== null) {
+            return $u;
+        }
+        $sa = Superadmin::user();
+        if ($sa !== null) {
+            return [
+                'name'       => (string) $sa['name'],
+                'role'       => 'superadmin',
+                'role_label' => 'System Administrator',
+            ];
+        }
+        return ['name' => '', 'role' => '', 'role_label' => ''];
     }
 
     /** AJAX: KPI payload for every permitted component (one round-trip). */

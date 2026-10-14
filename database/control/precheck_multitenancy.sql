@@ -21,6 +21,20 @@
 --  Run it against your LIVE database — it changes nothing that lasts.
 -- =====================================================================
 
+
+-- ---------------------------------------------------------------------
+-- PIN THE DATABASE.
+--   phpMyAdmin runs your SQL against whatever is selected in its sidebar.
+--   If that is information_schema (or nothing), unqualified table names
+--   resolve to the wrong schema and you get:
+--       #1109 - Unknown table 'tenants' in information_schema
+--   This USE line removes that whole class of mistake.
+--
+--   >>> If your database is not named srasinge1_gp, change it here.
+--       It is the ONLY place the name appears. <<<
+-- ---------------------------------------------------------------------
+USE `srasinge1_gp`;
+
 -- 1. Can we create a stored function?
 DROP FUNCTION IF EXISTS mt_precheck_fn;
 CREATE FUNCTION mt_precheck_fn() RETURNS INT DETERMINISTIC NO SQL RETURN @app_tenant;

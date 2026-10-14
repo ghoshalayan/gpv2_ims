@@ -6,6 +6,8 @@ namespace App\Middleware;
 use App\Support\Auth;
 use App\Support\Flash;
 use App\Support\Permissions;
+use App\Support\Superadmin;
+use App\Support\Tenant;
 
 /**
  * Route-level authorization driven by the dynamic permission system.
@@ -30,7 +32,11 @@ class PermissionMiddleware implements MiddlewareInterface
 
     public function handle(callable $next): void
     {
-        if (!Auth::check()) {
+        // A superadmin working inside a business has no user row there, so
+        // Auth::check() is false for them. They are still signed in, and
+        // Permissions::can() authorises them by identity below.
+        $signedIn = Auth::signedIn();
+        if (!$signedIn) {
             Flash::error('Please log in to continue.');
             echo redirect('/login');
             return;

@@ -5,6 +5,8 @@ namespace App\Middleware;
 
 use App\Support\Auth;
 use App\Support\Flash;
+use App\Support\Superadmin;
+use App\Support\Tenant;
 
 class RbacMiddleware implements MiddlewareInterface
 {
@@ -13,12 +15,16 @@ class RbacMiddleware implements MiddlewareInterface
 
     public function handle(callable $next): void
     {
-        if (!Auth::check()) {
+        // A superadmin inside a business holds no role in that business, so the
+        // role tiers below cannot apply to them. They outrank every tenant role
+        // by identity, and entering the business is already audited.
+        $superadminInTenant = Superadmin::check() && Tenant::check();
+        if (!Auth::signedIn()) {
             Flash::error('Please log in to continue.');
             echo redirect('/login');
             return;
         }
-        if (!Auth::is(...$this->allowedRoles)) {
+        if (!$superadminInTenant && !Auth::is(...$this->allowedRoles)) {
             \http_response_code(403);
             $title = 'Forbidden';
             $content = '<div class="text-center py-5"><h1 class="display-1 text-muted">403</h1>'

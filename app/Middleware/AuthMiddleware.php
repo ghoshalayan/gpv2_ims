@@ -15,7 +15,7 @@ class AuthMiddleware implements MiddlewareInterface
     {
         // A superadmin who has entered a tenant is authorised without being one of
         // that tenant's own users.
-        $signedIn = Auth::check() || (Superadmin::check() && Tenant::check());
+        $signedIn = Auth::signedIn();
 
         if (!$signedIn) {
             Flash::error('Please log in to continue.');
@@ -27,7 +27,7 @@ class AuthMiddleware implements MiddlewareInterface
         // this check Db::pdo() would throw deep inside a repository; failing here
         // is both earlier and clearer. Single-tenant installs (no control database
         // yet) are unaffected.
-        if (!Tenant::check() && Db::controlAvailable()) {
+        if (!Tenant::check() && Db::multiTenant()) {
             Flash::error('Your session is no longer attached to a business. Please sign in again.');
             Auth::logout();
             echo redirect('/login');

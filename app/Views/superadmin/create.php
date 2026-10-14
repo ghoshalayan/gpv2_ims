@@ -11,7 +11,8 @@
     usable: its business profile, settings, a fallback brand, and an administrator account.
     <div class="small mt-2">
         Its data is kept completely separate from every other business. The same customer,
-        product or supplier may exist in several businesses as unrelated records.
+        product or supplier may exist in several businesses as unrelated records, each with
+        its own selling price and its own stock.
     </div>
 </div>
 
@@ -25,7 +26,7 @@
                     <input type="text" id="label" name="label" maxlength="150" required
                            class="form-control" value="<?= e(old('label')) ?>"
                            placeholder="Acme Traders">
-                    <div class="form-text">Shown in the sign-in picker.</div>
+                    <div class="form-text">Shown on screen and on this business's documents.</div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="tenant_key">Key <span class="text-danger">*</span></label>
@@ -33,6 +34,17 @@
                            class="form-control font-monospace" value="<?= e(old('tenant_key')) ?>"
                            placeholder="acme" pattern="[a-z0-9][a-z0-9_-]{1,39}">
                     <div class="form-text">Lowercase letters, digits, hyphen or underscore.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="owner_username">Administrator username</label>
+                    <input type="text" id="owner_username" name="owner_username" maxlength="150"
+                           class="form-control font-monospace" value="<?= e(old('owner_username')) ?>"
+                           placeholder="acme_owner">
+                    <div class="form-text">
+                        Leave blank to use <code>&lt;key&gt;_owner</code>. Must be unique across
+                        <strong>all</strong> businesses &mdash; the sign-in screen has no business
+                        picker, so the username is what decides which business you land in.
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="remarks">Remarks</label>

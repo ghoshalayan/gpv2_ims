@@ -38,6 +38,62 @@ class UserRepository
         return $row === false ? null : $row;
     }
 
+    /**
+     * Find a sign-in by username across EVERY business.
+     *
+     * This is the one query in the application that deliberately bypasses tenant
+     * isolation, and it has to: at sign-in time no tenant is bound yet, because
+     * which tenant to bind is precisely what this answers. It therefore reads the
+     * base table `users__data` directly rather than the tenant-filtered `users`
+     * view, and returns the tenant_id so the caller can bind it.
+     *
+     * Usernames are globally unique (see database/control/global_usernames.sql),
+     * so this can match at most one row. The caller must still verify the
+     * password and check that the tenant is active.
+     */
+    public function findLoginAcrossTenants(string $username): ?array
+    {
+        // Before the multi-tenancy conversion there is no base table and no
+        // tenant column; the plain table is the whole story.
+        $multi = Db::multiTenant();
+        $table = $multi ? 'users__data' : 'users';
+        $tenantCol = $multi ? 'u.tenant_id' : 'NULL AS tenant_id';
+
+        $stmt = Db::pdo()->prepare(
+            "SELECT u.id, u.name, u.phone, u.email, u.username, u.password_hash,
+                    u.role_id, u.is_protected, r.role_key AS role, r.label AS role_label,
+                    u.status, u.last_login_at, {$tenantCol}
+             FROM {$table} u
+             JOIN roles r ON r.id = u.role_id
+             WHERE u.username = ? LIMIT 1"
+        );
+        $stmt->execute([$username]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Is this username taken in ANY business?
+     *
+     * Usernames decide which business a sign-in lands in, so they cannot repeat
+     * across businesses. Checking only the current tenant would let an
+     * administrator create a name that the unique index then rejects, with a raw
+     * database error instead of a sensible message.
+     */
+    public function usernameTakenAnywhere(string $username, ?int $excludeId = null): bool
+    {
+        $table = Db::multiTenant() ? 'users__data' : 'users';
+        $sql = "SELECT 1 FROM {$table} WHERE username = ?";
+        $params = [$username];
+        if ($excludeId !== null) {
+            $sql .= ' AND id <> ?';
+            $params[] = $excludeId;
+        }
+        $stmt = Db::pdo()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return (bool) $stmt->fetchColumn();
+    }
+
     public function findById(int $id): ?array
     {
         $stmt = Db::pdo()->prepare(
@@ -59,9 +115,10 @@ class UserRepository
         $stmt->execute([$id]);
     }
 
+    /** Usernames are unique across ALL businesses, not just this one. */
     public function existsByUsername(string $username, ?int $excludeId = null): bool
     {
-        return $this->existsByField('username', $username, $excludeId);
+        return $this->usernameTakenAnywhere($username, $excludeId);
     }
 
     public function existsByPhone(string $phone, ?int $excludeId = null): bool

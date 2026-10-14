@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\TenantRepository;
+use App\Repositories\UserRepository;
 use App\Services\TenantProvisionService;
 use App\Support\Db;
 use App\Support\Flash;
@@ -63,9 +64,10 @@ class SuperadminController
      */
     public function store(): string
     {
-        $key     = \strtolower(	rim((string) ($_POST['tenant_key'] ?? '')));
-        $label   = 	rim((string) ($_POST['label'] ?? ''));
-        $remarks = 	rim((string) ($_POST['remarks'] ?? '')) ?: null;
+        $key     = \strtolower(\trim((string) ($_POST['tenant_key'] ?? '')));
+        $label   = \trim((string) ($_POST['label'] ?? ''));
+        $remarks = \trim((string) ($_POST['remarks'] ?? '')) ?: null;
+        $owner   = \strtolower(\trim((string) ($_POST['owner_username'] ?? '')));
 
         $errors = [];
         if (!\preg_match('/^[a-z0-9][a-z0-9_-]{1,39}$/', $key)) {
@@ -75,6 +77,21 @@ class SuperadminController
         if ($errors === [] && $this->repo->tenantKeyExists($key)) {
             $errors[] = "Key '{$key}' is already in use.";
         }
+
+        // Default the administrator's username from the key, then check it is
+        // free across EVERY business - the sign-in resolves the business from
+        // the username, so it cannot repeat.
+        if ($errors === []) {
+            if ($owner === '') {
+                $owner = TenantProvisionService::suggestedOwnerUsername($key);
+            }
+            if (!\preg_match('/^[a-z0-9][a-z0-9_.-]{2,149}$/', $owner)) {
+                $errors[] = 'Administrator username must be 3-150 characters: lowercase '
+                          . 'letters, digits, dot, hyphen or underscore.';
+            } elseif ((new UserRepository())->usernameTakenAnywhere($owner)) {
+                $errors[] = "The username '{$owner}' is already in use by another business.";
+            }
+        }
         if ($errors !== []) {
             flash_old($_POST);
             Flash::error($errors[0]);
@@ -82,7 +99,7 @@ class SuperadminController
         }
 
         try {
-            $r = $this->provision->create($key, $label, $remarks);
+            $r = $this->provision->create($key, $label, $remarks, $owner);
         } catch (\Throwable $e) {
             flash_old($_POST);
             Flash::error('Could not create the business: ' . $e->getMessage());

@@ -57,6 +57,58 @@ class Auth
         return self::role() === self::ROLE_ADMIN;
     }
 
+    /**
+     * Is there an identity entitled to work inside a business?
+     *
+     * Either one of that business's own users, OR a superadmin who has entered
+     * it. A superadmin has no user row in any business, so Auth::check() alone
+     * is the wrong question everywhere outside the sign-in itself.
+     *
+     * Kept in one place deliberately: this test was previously written out by
+     * hand in each middleware, they drifted, and a superadmin ended up locked
+     * out of every business page by the one copy that was missed.
+     */
+    public static function signedIn(): bool
+    {
+        return self::check() || (Superadmin::check() && Tenant::check());
+    }
+
+    /**
+     * Does the current identity hold administrator powers in this business?
+     * A superadmin outranks every role a business can define.
+     */
+    public static function actsAsAdmin(): bool
+    {
+        return self::isAdmin() || (Superadmin::check() && Tenant::check());
+    }
+
+    /**
+     * Name, username and role for display. Falls back to the superadmin's own
+     * identity, so screens do not have to special-case a null user.
+     *
+     * @return array{name:string, username:string, role:string}
+     */
+    public static function displayUser(): array
+    {
+        $u = self::user();
+        if ($u !== null) {
+            return [
+                'name'     => (string) ($u['name'] ?? ''),
+                'username' => (string) ($u['username'] ?? ''),
+                'role'     => (string) ($u['role_label'] ?? $u['role'] ?? ''),
+            ];
+        }
+        $sa = Superadmin::user();
+        if ($sa !== null) {
+            return [
+                'name'     => (string) $sa['name'],
+                'username' => (string) $sa['username'],
+                'role'     => 'System Administrator',
+            ];
+        }
+        return ['name' => '', 'username' => '', 'role' => ''];
+    }
+
     public static function login(array $user): void
     {
         \session_regenerate_id(true);
